@@ -21,7 +21,7 @@ fn main() {
 
     let mut loops = 0;
     total_timer.start();
-    while loops < 10000000 {
+    while loops < 10_000_000 {
         loop_timer.start();
         {
           loop_counter.incr();

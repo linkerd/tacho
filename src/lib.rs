@@ -3,8 +3,9 @@ extern crate futures;
 #[macro_use]
 extern crate tokio_core;
 
+extern crate twox_hash;
+
 extern crate chrono;
-use chrono::prelude::*;
 
 extern crate hdrsample;
 

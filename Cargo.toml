@@ -15,3 +15,4 @@ hyper = { git = "https://github.com/hyperium/hyper" }
 tokio-core = "0.1"
 hdrsample = "3.0.0"
 chrono = "0.3"
+twox-hash = "1.0.1"

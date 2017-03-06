@@ -1,24 +1,27 @@
 extern crate futures;
 extern crate hdrsample;
+extern crate twox_hash;
 
-use std::collections::HashMap;
-use futures::{Stream, Sink, Future};
+//use futures::{Stream, Sink, Future};
 use timer::Timer;
 use counter::Counter;
 use hdrsample::Histogram;
 
+use std::collections::HashMap;
+use twox_hash::RandomXxHashBuilder;
+
 pub struct Metrics {
     // TODO: swap these out with an xxHash HashMap for speed.
     // The default HashMap is built around a cryptographic hash.
-    pub counter_store: HashMap<String, u64>,
-    pub timer_store: HashMap<String, Histogram<u64>>,
+    pub counter_store: HashMap<String, u64, RandomXxHashBuilder>,
+    pub timer_store: HashMap<String, Histogram<u64>, RandomXxHashBuilder>,
 }
 
 impl Metrics {
     pub fn new() -> Metrics {
         Metrics {
-            counter_store: HashMap::new(),
-            timer_store: HashMap::new(),
+            counter_store: Default::default(),
+            timer_store: Default::default(),
         }
     }
 
@@ -51,7 +54,8 @@ impl Metrics {
     pub fn report_timer(&mut self, timer: Timer) -> Timer {
         if let Some(histogram) = self.timer_store.get_mut(&timer.name) {
             if let Some(elapsed) = timer.elapsed {
-              histogram.record(elapsed);
+                // TODO: a panic is not a great idea here.
+                histogram.record(elapsed).expect("Unable to record histogram value");
             }
         }
         return timer.fresh();
