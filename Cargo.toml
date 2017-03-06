@@ -1,0 +1,17 @@
+[package]
+name = "tachograph"
+description = "Metrics library for tracking system performance metrics. tokio-aware"
+version = "0.0.1"
+authors = ["Steve Jenson <stevej@buoyant.io>"]
+
+[profile.release]
+debug = true
+
+[dependencies]
+log = "0.3"
+env_logger = "0.3.1"
+futures = "0.1.1"
+hyper = { git = "https://github.com/hyperium/hyper" }
+tokio-core = "0.1"
+hdrsample = "3.0.0"
+chrono = "0.3"
