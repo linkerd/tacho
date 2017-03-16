@@ -1,22 +1,27 @@
 extern crate futures;
 extern crate hdrsample;
 extern crate twox_hash;
+extern crate tokio_core;
 
-//use futures::{Stream, Sink, Future};
+use futures::Future;
+use futures::Sink;
+use futures::sync::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
+
 use timer::Timer;
 use counter::Counter;
 use hdrsample::Histogram;
 
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
+use std::fmt;
 use twox_hash::RandomXxHashBuilder;
 
 pub struct Metrics {
-    // TODO: swap these out with an xxHash HashMap for speed.
-    // The default HashMap is built around a cryptographic hash.
     pub counter_store: HashMap<String, u64, RandomXxHashBuilder>,
     pub timer_store: HashMap<String, Histogram<u64>, RandomXxHashBuilder>,
 }
 
+// A Synchronous Metrics implementation.
 impl Metrics {
     pub fn new() -> Metrics {
         Metrics {
@@ -25,11 +30,11 @@ impl Metrics {
         }
     }
 
-    // Returns a Counter associated with this metrics object.
+    /// Returns a Counter associated with this metrics object.
     pub fn make_counter(&mut self, name: String) -> Counter {
         let counter = Counter::new(name.clone());
         if !self.counter_store.contains_key(&name) {
-          self.counter_store.insert(name, 0);
+            self.counter_store.insert(name, 0);
         }
         return counter;
     }
@@ -44,40 +49,103 @@ impl Metrics {
         return timer;
     }
 
+    /// Adds the Counter value to the Metrics stored Counter value.
+    /// Returns a fresh Counter.
     pub fn report_counter(&mut self, counter: Counter) -> Counter {
+        if !self.counter_store.contains_key(&counter.name) {
+            self.counter_store.insert(counter.name.clone(), 0);
+        }
         if let Some(original_count) = self.counter_store.get_mut(&counter.name) {
             *original_count += counter.value;
         }
         return counter.fresh();
     }
 
+    /// Adds the Timer value to the Metrics stored Timer value.
+    /// Returns a fresh Timer ready to be used.
     pub fn report_timer(&mut self, timer: Timer) -> Timer {
+        if !self.timer_store.contains_key(&timer.name) {
+            // TODO: this is one minute in microseconds.
+            let histogram = Histogram::<u64>::new_with_bounds(1, 60 * 1000 * 1000, 5).unwrap();
+            self.timer_store.insert(timer.name.clone(), histogram);
+        }
         if let Some(histogram) = self.timer_store.get_mut(&timer.name) {
             if let Some(elapsed) = timer.elapsed {
-                // TODO: a panic is not a great idea here.
-                histogram.record(elapsed).expect("Unable to record histogram value");
+                histogram.record(elapsed);
             }
         }
         return timer.fresh();
     }
-
 }
 
-// Possible design of an aggregator:
-// A Channel is fed with typed id, value (counts, gauges, timings)
-// - Counts are added
-// - Gauges are stored as-is with last-write-wins semantics (?)
-// - Timings are aggregated in a hdr histogram per ID.
-// How to do this:
-// Have a future that does all the work, and use a select with a timeout
-// that has the time resolution you're tracking. (like 1 minute or what have you)
-// Benchmark different ways to aggregate:
-// - combined channel
-// - channel per type
-//   - read until empty channel or read in a batch and give up time to other readers.
-// Get a basic, fast-enough version in place and then write up benchmarking plans
-// for after the tech preview. A channel per type should optimize fast enough and
-// not add too much overhead.
+#[derive(Clone, Debug)]
+pub struct MetricsBundle {
+    pub counters: Vec<Counter>,
+    pub timers: Vec<Timer>,
+}
+
+/// A MetricsBundle is a simplifying abstraction for writing a collection
+/// of Metrics into an AsyncMetrics tx.
+impl MetricsBundle {
+    pub fn new() -> MetricsBundle {
+        MetricsBundle {
+            counters: vec![],
+            timers: vec![],
+        }
+    }
+
+    pub fn with_metrics(counters: Vec<Counter>, timers: Vec<Timer>) -> MetricsBundle {
+        MetricsBundle {
+            counters: counters,
+            timers: timers,
+        }
+    }
+
+    pub fn report(self, tx: UnboundedSender<MetricsBundle>) -> Box<Future<Item = (), Error = ()>> {
+        info!("Send {:?} to the Sender", &self);
+        let rv = tx.send(self)
+            .then(|tx| match tx {
+                Ok(_tx) => {
+                    info!("Sink flushed");
+                    Ok(())
+                }
+                Err(e) => {
+                    error!("Sink failed! {:?}", e);
+                    Err(())
+                }
+            })
+            .boxed();
+        rv
+    }
+}
+
+impl fmt::Display for MetricsBundle {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({:?}, {:?})", self.counters, self.timers)
+    }
+}
+
+/// For interfacing with tokio services, we provide a Futures-aware mpsc Channel
+/// for writing metrics into.
+///
+pub struct AsyncMetrics {
+    pub metrics: Arc<RwLock<Metrics>>,
+    pub tx: UnboundedSender<MetricsBundle>,
+}
+
+impl AsyncMetrics {
+    /// Returns an AsyncMetrics object for sending metrics and a separate UnboundedReceiver<MetricsBundle>
+    /// for processing new Metrics for storing in the AsyncMetrics store.
+    pub fn new() -> (AsyncMetrics, UnboundedReceiver<MetricsBundle>) {
+        let (tx, rx) = unbounded();
+
+        (AsyncMetrics {
+            metrics: Arc::new(RwLock::new(Metrics::new())),
+            tx: tx, // rx: Arc::new(RwLock::new(rx)),
+        },
+         rx)
+    }
+}
 
 #[cfg(test)]
 mod tests {

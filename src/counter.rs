@@ -1,5 +1,5 @@
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Counter {
     pub name: String,
     pub value: u64,

@@ -7,12 +7,19 @@ authors = ["Steve Jenson <stevej@buoyant.io>"]
 [profile.release]
 debug = true
 
+[[bin]]
+name = "futures_performance_test"
+
+[[bin]]
+name = "performance_test"
+
 [dependencies]
 log = "0.3"
 env_logger = "0.3.1"
-futures = "0.1.1"
+futures = "0.1.11"
 hyper = { git = "https://github.com/hyperium/hyper" }
-tokio-core = "0.1"
+tokio-core = "0.1.6"
 hdrsample = "3.0.0"
 chrono = "0.3"
 twox-hash = "1.0.1"
+tokio-timer = { git = "https://github.com/tokio-rs/tokio-timer" }

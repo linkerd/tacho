@@ -1,9 +1,6 @@
 use chrono::datetime::DateTime;
 use chrono::offset::local::Local;
 
-
-// This needs to be split into three: A Fresh Timer with just a name, a started
-// Timer with a name and start Time, and a completed Timed action.
 #[derive(Clone, Debug)]
 pub struct Timer {
     pub name: String,

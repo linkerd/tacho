@@ -1,16 +1,14 @@
 #[macro_use]
 extern crate log;
 extern crate env_logger;
-#[macro_use]
-extern crate futures;
-#[macro_use]
-extern crate tokio_core;
 
 extern crate tachograph;
 use tachograph::metrics::Metrics;
 use tachograph::reporter;
 
-// Creates 10 million counts, timing each loop and the cost of .incr();
+// A performance test for a synchronous Metrics reporter with timers and counts.
+//
+// Creates 10 million counts, timing each loop and the cost of .incr().
 fn main() {
     drop(env_logger::init());
 
@@ -24,8 +22,8 @@ fn main() {
     while loops < 10_000_000 {
         loop_timer.start();
         {
-          loop_counter.incr();
-          // Do some work here.
+            loop_counter.incr();
+            // Do some work here.
         }
         loop_timer.stop();
         loop_timer = metrics.report_timer(loop_timer);
@@ -35,5 +33,5 @@ fn main() {
     total_timer.stop();
     metrics.report_timer(total_timer);
 
-    reporter::print_report(metrics);
+    reporter::print_report(&metrics);
 }
