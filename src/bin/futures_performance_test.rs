@@ -84,8 +84,12 @@ fn main() {
             })
             .into_future();
         remote.spawn(|handle| {
-            handle.spawn(aggregator);
-            futures::future::ok(())
+            handle.spawn(aggregator.then(|_| {
+                info!("aggregator finished its run");
+                let result: Result<(), ()> = Ok(());
+                result
+            }));
+            Ok(())
         });
     });
 
