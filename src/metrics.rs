@@ -3,9 +3,7 @@ extern crate hdrsample;
 extern crate twox_hash;
 extern crate tokio_core;
 
-use futures::Future;
-use futures::Sink;
-use futures::sync::mpsc::{unbounded, UnboundedReceiver, UnboundedSender};
+use futures::sync::mpsc::{unbounded, UnboundedReceiver, UnboundedSender, SendError};
 
 use timer::Timer;
 use counter::Counter;
@@ -71,7 +69,7 @@ impl Metrics {
         }
         if let Some(histogram) = self.timer_store.get_mut(&timer.name) {
             if let Some(elapsed) = timer.elapsed {
-                histogram.record(elapsed);
+                let _ = histogram.record(elapsed);
             }
         }
         return timer.fresh();
@@ -101,21 +99,11 @@ impl MetricsBundle {
         }
     }
 
-    pub fn report(self, tx: UnboundedSender<MetricsBundle>) -> Box<Future<Item = (), Error = ()>> {
-        info!("Send {:?} to the Sender", &self);
-        let rv = tx.send(self)
-            .then(|tx| match tx {
-                Ok(_tx) => {
-                    info!("Sink flushed");
-                    Ok(())
-                }
-                Err(e) => {
-                    error!("Sink failed! {:?}", e);
-                    Err(())
-                }
-            })
-            .boxed();
-        rv
+    /// Places the current MetricsBundle into the tx receiver for later processing.
+    pub fn report(self,
+                  mut tx: UnboundedSender<MetricsBundle>)
+                  -> Result<(), SendError<MetricsBundle>> {
+        UnboundedSender::send(&mut tx, self)
     }
 }
 
