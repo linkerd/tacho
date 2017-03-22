@@ -3,19 +3,30 @@ extern crate hdrsample;
 extern crate twox_hash;
 extern crate tokio_core;
 
-use futures::sync::mpsc::{unbounded, UnboundedReceiver, UnboundedSender, SendError};
+use tokio_timer::Timer as TokioTimer;
 
-use timer::Timer;
-use counter::Counter;
+use futures::sync::mpsc::{unbounded, UnboundedReceiver, UnboundedSender, SendError};
+use tokio_core::reactor::Handle;
+use futures::{Future, Stream};
+use futures::sync::BiLock;
+
+use super::timer::Timer;
+use super::counter::Counter;
+use super::gauge::Gauge;
+use super::reporter::print_report;
+
 use hdrsample::Histogram;
 
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::io::{Error, ErrorKind};
 use std::fmt;
+use std::time::Duration;
+
 use twox_hash::RandomXxHashBuilder;
 
 pub struct Metrics {
     pub counter_store: HashMap<String, u64, RandomXxHashBuilder>,
+    pub gauge_store: HashMap<String, u64, RandomXxHashBuilder>,
     pub timer_store: HashMap<String, Histogram<u64>, RandomXxHashBuilder>,
 }
 
@@ -24,6 +35,7 @@ impl Metrics {
     pub fn new() -> Metrics {
         Metrics {
             counter_store: Default::default(),
+            gauge_store: Default::default(),
             timer_store: Default::default(),
         }
     }
@@ -59,6 +71,13 @@ impl Metrics {
         return counter.fresh();
     }
 
+    /// Adds the Counter value to the Metrics stored Counter value.
+    /// Returns a fresh Counter.
+    pub fn report_gauge(&mut self, gauge: Gauge) -> Gauge {
+        self.counter_store.insert(gauge.name.clone(), gauge.value);
+        return gauge.fresh();
+    }
+
     /// Adds the Timer value to the Metrics stored Timer value.
     /// Returns a fresh Timer ready to be used.
     pub fn report_timer(&mut self, timer: Timer) -> Timer {
@@ -74,11 +93,18 @@ impl Metrics {
         }
         return timer.fresh();
     }
+
+    pub fn clear(&mut self) {
+        self.counter_store.clear();
+        self.gauge_store.clear();
+        self.timer_store.clear();
+    }
 }
 
 #[derive(Clone, Debug)]
 pub struct MetricsBundle {
     pub counters: Vec<Counter>,
+    pub gauges: Vec<Gauge>,
     pub timers: Vec<Timer>,
 }
 
@@ -88,13 +114,18 @@ impl MetricsBundle {
     pub fn new() -> MetricsBundle {
         MetricsBundle {
             counters: vec![],
+            gauges: vec![],
             timers: vec![],
         }
     }
 
-    pub fn with_metrics(counters: Vec<Counter>, timers: Vec<Timer>) -> MetricsBundle {
+    pub fn with_metrics(counters: Vec<Counter>,
+                        gauges: Vec<Gauge>,
+                        timers: Vec<Timer>)
+                        -> MetricsBundle {
         MetricsBundle {
             counters: counters,
+            gauges: gauges,
             timers: timers,
         }
     }
@@ -117,7 +148,7 @@ impl fmt::Display for MetricsBundle {
 /// for writing metrics into.
 ///
 pub struct AsyncMetrics {
-    pub metrics: Arc<RwLock<Metrics>>,
+    pub metrics: Metrics,
     pub tx: UnboundedSender<MetricsBundle>,
 }
 
@@ -128,11 +159,65 @@ impl AsyncMetrics {
         let (tx, rx) = unbounded();
 
         (AsyncMetrics {
-            metrics: Arc::new(RwLock::new(Metrics::new())),
+            metrics: Metrics::new(),
             tx: tx, // rx: Arc::new(RwLock::new(rx)),
         },
          rx)
     }
+}
+
+// Important to note: If you put enough items into this Receiver,
+// the event loop will spend all of it's time processing those items
+// and never give other Futures time to work.
+pub fn aggregator(rx: UnboundedReceiver<MetricsBundle>,
+                  lock: BiLock<AsyncMetrics>,
+                  handle: &Handle) {
+    let aggregator = rx.fold(lock, |aggregator_lock, bundle| {
+        aggregator_lock.lock().map(move |mut async_metrics| {
+            for timer in bundle.timers.iter() {
+                async_metrics.metrics.report_timer((*timer).clone());
+            }
+
+            for counter in bundle.counters.iter() {
+                async_metrics.metrics.report_counter((*counter).clone());
+            }
+
+            for gauge in bundle.gauges.iter() {
+                async_metrics.metrics.report_gauge((*gauge).clone());
+            }
+            async_metrics.unlock()
+        })
+    });
+
+    handle.spawn_fn(move || {
+        aggregator.then(move |_| {
+            debug!("aggregator has stopped");
+            Ok(()) as Result<(), ()>
+        })
+    });
+}
+
+pub fn report_generator(reporter_lock: BiLock<AsyncMetrics>, handle: &Handle) {
+    let report_generator = TokioTimer::default()
+        .interval(Duration::from_millis(1000 * 2))
+        .map_err(|_| ())
+        .fold(reporter_lock, move |reporter_lock, _| {
+            trace!("making report");
+            reporter_lock.lock().map(move |mut reporter_lock| {
+                print_report(&reporter_lock.metrics);
+                println!("");
+                reporter_lock.metrics.clear();
+                reporter_lock.unlock()
+            })
+        })
+        .map_err(|_| Error::new(ErrorKind::Other, "unable to run report generator"));
+
+    handle.spawn_fn(move || {
+        report_generator.then(move |_| {
+            debug!("report generator has stopped.");
+            Ok(()) as Result<(), ()>
+        })
+    });
 }
 
 #[cfg(test)]
