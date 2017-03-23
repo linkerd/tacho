@@ -1,8 +1,8 @@
 extern crate env_logger;
 
-extern crate tachograph;
-use tachograph::metrics::Metrics;
-use tachograph::reporter;
+extern crate tacho;
+use tacho::metrics::Metrics;
+use tacho::reporter;
 
 // A performance test for a synchronous Metrics reporter with timers and counts.
 //

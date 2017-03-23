@@ -1,4 +1,4 @@
-Tachograph - a tokio-aware metrics library
+Tacho - a tokio-aware metrics library
 
 > tach·o·graph
 > /ˈtakəˌɡraf/
@@ -9,11 +9,10 @@ Features
 --------
 - Counters
 - Timers
+- Gauges
+- Stats Aggregator
+- Reporter supporting Prometheus output
 
 TODO
 ----
-- [] Gauges
-- [] Aggregator connected via a Channel
 - [] Admin Page
-- [] JSON output
-- [] Prometheus integration
