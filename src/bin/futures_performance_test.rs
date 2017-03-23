@@ -54,7 +54,7 @@ fn main() {
     let mut heartbeats = 0;
     let heartbeater = TokioTimer::default()
         .interval(Duration::from_millis(1000))
-        .map_err(|_| Error::new(ErrorKind::Other, "unable to run report generator"))
+        .map_err(|_| Error::new(ErrorKind::Other, "unable to run heartbeat"))
         .for_each(|_| {
             heartbeats += 1;
             let heartbeats_gauge = Gauge::new("heartbeats".to_owned(), heartbeats);
