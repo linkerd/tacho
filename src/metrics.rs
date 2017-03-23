@@ -5,9 +5,9 @@ extern crate tokio_core;
 
 use futures::sync::{BiLock, mpsc};
 use futures::{Future, Stream};
-use hdrsample::Histogram;
 use std::collections::HashMap;
 use std::time::Duration;
+use hdrsample::Histogram;
 use tokio_timer::Timer as TokioTimer;
 use twox_hash::RandomXxHashBuilder;
 
@@ -93,7 +93,6 @@ impl Metrics {
     }
 
     pub fn clear(&mut self) {
-        self.counter_store.clear();
         self.gauge_store.clear();
         self.timer_store.clear();
     }
@@ -159,13 +158,17 @@ impl Aggregator {
     }
 }
 
+// Returns a Future that periodically prints a report to stdout.
 pub fn report_generator(metrics: BiLock<Metrics>) -> Box<Future<Item = (), Error = ()>> {
     TokioTimer::default()
+        // TODO: make this configurable
         .interval(Duration::from_millis(1000 * 2))
         .map_err(|_| ())
         .fold(metrics, move |metrics, _| {
             trace!("making report");
             metrics.lock().map(move |mut metrics| {
+                // TODO: this should write to an Arc<RwLock<String>> that's been
+                // passed in or to a Sender<String> that's listening for new reports.
                 print_report(&metrics);
                 println!("");
                 metrics.clear();

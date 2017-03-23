@@ -1,7 +1,7 @@
 extern crate log;
 extern crate env_logger;
 extern crate futures;
-extern crate tachograph;
+extern crate tacho;
 extern crate tokio_core;
 extern crate tokio_timer;
 
@@ -12,11 +12,11 @@ use std::thread;
 use tokio_core::reactor::Core;
 use tokio_timer::Timer as TokioTimer;
 
-use tachograph::{Counter, Gauge};
-use tachograph::timer::Timer;
-use tachograph::metrics;
+use tacho::{Counter, Gauge};
+use tacho::timer::Timer;
+use tacho::metrics;
 
-// A performance test for an asynchronous Metrics reporter with timers and counts.
+// A performance test for an asynchronous Metrics reporter with timers, counters, and gauges.
 fn main() {
     drop(env_logger::init());
 
@@ -39,7 +39,6 @@ fn main() {
                 loop_timer.stop();
                 tx.record(vec![loop_counter], vec![loop_gauge], vec![loop_timer]);
             }
-            println!("WOW THAT WAS FAST!");
             total_timer.stop();
             tx.record(vec![], vec![], vec![total_timer])
         })

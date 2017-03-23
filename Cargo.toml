@@ -1,8 +1,9 @@
 [package]
-name = "tachograph"
-description = "Metrics library for tracking system performance metrics. tokio-aware"
-version = "0.0.1"
-authors = ["Steve Jenson <stevej@buoyant.io>"]
+name = "tacho"
+description = "Tokio-aware metrics library for tracking system performance."
+version = "0.1.0"
+authors = ["Steve Jenson <stevej@buoyant.io>",
+           "Oliver Gould <oliver@buoyant.io"]
 
 [profile.release]
 debug = true
@@ -17,9 +18,8 @@ name = "performance_test"
 log = "0.3"
 env_logger = "0.3.1"
 futures = "0.1.11"
-hyper = { git = "https://github.com/hyperium/hyper" }
 tokio-core = "0.1.6"
 hdrsample = "3.0.0"
 chrono = "0.3"
 twox-hash = "1.0.1"
-tokio-timer = { git = "https://github.com/tokio-rs/tokio-timer" }
+tokio-timer = "0.1.0"
