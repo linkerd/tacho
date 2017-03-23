@@ -1,5 +1,3 @@
-#[macro_use]
-extern crate log;
 extern crate env_logger;
 
 extern crate tachograph;
@@ -22,7 +20,7 @@ fn main() {
     while loops < 10_000_000 {
         loop_timer.start();
         {
-            loop_counter.incr();
+            loop_counter.incr(1);
             // Do some work here.
         }
         loop_timer.stop();

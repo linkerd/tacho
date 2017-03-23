@@ -5,15 +5,15 @@ use metrics::Metrics;
 pub fn print_report(metrics: &Metrics) {
     println!("metrics{{count}} {}",
              metrics.timer_store.len() + metrics.counter_store.len());
-    for (name, count) in metrics.counter_store.iter() {
+    for (name, count) in &metrics.counter_store {
         println!("{} {}", name, count);
     }
 
-    for (name, gauge) in metrics.gauge_store.iter() {
+    for (name, gauge) in &metrics.gauge_store {
         println!("{} {}", name, gauge);
     }
 
-    for (name, histogram) in metrics.timer_store.iter() {
+    for (name, histogram) in &metrics.timer_store {
         println!("{}{{stat=\"count\"}} {}", name, histogram.count());
         // TODO: add sum()?
         // println!("{}{{stat=\"sum\"}} {}", name, histogram.sum());

@@ -26,12 +26,11 @@ impl Gauge {
 
 #[cfg(test)]
 mod tests {
-    use gauge;
-    use timer::Gauge;
+    use gauge::Gauge;
 
     #[test]
     fn test_basic_gauges() {
-        let v = Gauge::new("foo", 1);
+        let v = Gauge::new("foo".into(), 1);
         assert_eq!(v.value, 1)
     }
 }
