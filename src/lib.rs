@@ -3,6 +3,8 @@ extern crate futures;
 #[macro_use]
 extern crate tokio_core;
 #[macro_use]
+extern crate tokio_timer;
+#[macro_use]
 extern crate log;
 
 extern crate twox_hash;
@@ -12,6 +14,7 @@ extern crate chrono;
 extern crate hdrsample;
 
 pub mod counter;
+pub mod gauge;
 pub mod timer;
 pub mod metrics;
 pub mod reporter;

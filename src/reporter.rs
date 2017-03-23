@@ -9,6 +9,10 @@ pub fn print_report(metrics: &Metrics) {
         println!("{} {}", name, count);
     }
 
+    for (name, gauge) in metrics.gauge_store.iter() {
+        println!("{} {}", name, gauge);
+    }
+
     for (name, histogram) in metrics.timer_store.iter() {
         println!("{}{{stat=\"count\"}} {}", name, histogram.count());
         // TODO: add sum()?

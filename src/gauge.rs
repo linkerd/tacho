@@ -1,13 +1,25 @@
-struct Gauge {
-    name: String
-    value: u64
+#[derive(Clone, Debug)]
+pub struct Gauge {
+    pub name: String,
+    pub value: u64,
 }
 
 impl Gauge {
-    fn new(name: String, value: u64) -> Gauge {
+    pub fn new(name: String, value: u64) -> Gauge {
         Gauge {
             name: name,
-            value: value
+            value: value,
+        }
+    }
+
+    pub fn set(&mut self, value: u64) {
+        self.value = value;
+    }
+
+    pub fn fresh(&self) -> Gauge {
+        Gauge {
+            name: self.name.clone(),
+            value: 0,
         }
     }
 }
