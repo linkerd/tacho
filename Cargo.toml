@@ -4,6 +4,9 @@ description = "Tokio-aware metrics library for tracking system performance."
 version = "0.1.0"
 authors = ["Steve Jenson <stevej@buoyant.io>",
            "Oliver Gould <oliver@buoyant.io"]
+repository = "https://github.com/BuoyantIO/tacho"
+license = "Apache-2.0"
+readme = "README.md"
 
 [profile.release]
 debug = true

@@ -3,17 +3,17 @@ extern crate hdrsample;
 extern crate twox_hash;
 extern crate tokio_core;
 
-use futures::sync::{BiLock, mpsc};
 use futures::{Future, Stream};
+use futures::sync::{BiLock, mpsc};
+use hdrsample::Histogram;
 use std::collections::HashMap;
 use std::time::Duration;
-use hdrsample::Histogram;
-use tokio_timer::Timer as TokioTimer;
-use twox_hash::RandomXxHashBuilder;
 
 use super::{Counter, Gauge};
 use super::reporter::print_report;
 use super::timer::Timer;
+use tokio_timer::Timer as TokioTimer;
+use twox_hash::RandomXxHashBuilder;
 
 pub fn new() -> (Recorder, Aggregator) {
     let (tx, rx) = mpsc::unbounded();
@@ -131,7 +131,7 @@ impl Recorder {
 pub struct Aggregator(mpsc::UnboundedReceiver<MetricsBundle>);
 impl Aggregator {
     // Important to note: If you put enough items into this Receiver,
-    // the event loop will spend all of it's time processing those items
+    // the event loop will spend all of its time processing those items
     // and never give other Futures time to work.
     pub fn aggregate(self) -> (BiLock<Metrics>, Box<Future<Item = (), Error = ()>>) {
         let (aggregated, reporter) = BiLock::new(Metrics::new());
