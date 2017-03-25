@@ -1,28 +1,20 @@
 [package]
 name = "tacho"
-description = "Tokio-aware metrics library for tracking system performance."
-version = "0.1.1"
+description = "Tokio-aware metrics library."
+version = "0.2.0"
 authors = ["Steve Jenson <stevej@buoyant.io>",
            "Oliver Gould <oliver@buoyant.io>"]
 repository = "https://github.com/BuoyantIO/tacho"
 license = "Apache-2.0"
 readme = "README.md"
 
-[profile.release]
-debug = true
-
-[[bin]]
-name = "futures_performance_test"
-
-[[bin]]
-name = "performance_test"
-
 [dependencies]
+futures = "0.1"
+tokio-timer = "0.1"
+hdrsample = "3.0"
+twox-hash = "1.0"
 log = "0.3"
-env_logger = "0.3.1"
-futures = "0.1.11"
-tokio-core = "0.1.6"
-hdrsample = "3.0.0"
-chrono = "0.3"
-twox-hash = "1.0.1"
-tokio-timer = "0.1.0"
+
+[dev-dependencies]
+tokio-core = "0.1"
+pretty_env_logger = "0.1"
