@@ -12,11 +12,7 @@ const BUF_SIZE: usize = 8 * 1024;
 pub fn format(report: &Report) -> String {
     let mut out = String::with_capacity(BUF_SIZE);
 
-    //out.push_str(format!("metrics_generated_time_sec {}\n", UTC::now().timestamp()).as_str());
-
-    // out.push_str(format!("metrics{{count}} {}\n",
-    //                      report.stats.len() + report.stats.len())
-    //     .as_str());
+    out.push_str(&format!("metrics_count {}\n", report.len()));
 
     for (k, v) in &report.counters {
         let labels = k.labels();

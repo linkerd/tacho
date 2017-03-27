@@ -2,56 +2,20 @@
 //!
 //! Many programs need to information about runtime performance: the number of requests
 //! served, a distribution of request latency, the number of failures, the number of loop
-//! iterations, etc. `tacho` allows application code to record runtime information to a central
-//! `Aggregator` that merges data into a `Report`.
-//!
-//! ```
-//! extern crate futures; extern crate tacho; extern crate tokio_core; extern crate
-//! tokio_timer;
-//!
-//! use futures::{Future, future}; use std::time::Duration; use tokio_core::reactor::Core;
-//! use tacho::{Scope, Tacho, Timing};
-//! use tokio_timer::Timer;
-//!
-//! fn main() {
-//!     let mut core = Core::new().expect("Failed to create core");
-//!
-//!     let Tacho { metrics, aggregator, report } = Tacho::default();
-//!     core.handle().spawn(aggregator);
-//!
-//!     let metrics = metrics.labeled("labelkey".into(), "labelval".into());
-//!     let iter_time_us = metrics.scope().stat("iter_time_us".into());
-//!
-//!     let timer = Timer::default();
-//!     let working = future::loop_fn(99, move |n| {
-//!         let metrics = metrics.clone();
-//!         let iter_time_us = iter_time_us.clone();
-//!         let start = Timing::start();
-//!         timer.sleep(Duration::from_millis(n)).map_err(|_| {}).map(move |_| if n == 0 {
-//!             future::Loop::Break(n)
-//!         } else {
-//!             metrics.recorder().add(&iter_time_us, start.elapsed_us());
-//!             future::Loop::Continue(n - 1)
-//!         })
-//!     });
-//!
-//!     let reported = working.and_then(|_| {
-//!         report.lock().map(|report| {
-//!             // println!("{}", tacho::prometheus::format(&report));
-//!         })
-//!     });
-//!     core.run(reported).expect("couldn't run tokio reactor");
-//! }
-//! ```
+//! iterations, etc. `tacho` allows application code to record runtime information to a
+//! central `Aggregator` that merges data into a `Report`.
 //!
 //! ## Performance
 //!
-//! We found that the default (cryptographic) `HashMap` algorithm adds a significant
-//! performance penalty. So the `RandomXxHashBuilder` algorithm is used to manage values
-//! in
+//! We found that the default (cryptographic) `Hash` algorithm adds a significant
+//! performance penalty. So the non-cryptographic `RandomXxHashBuilder` algorithm is used
+//! by `Reporter` and `Sample`.
 //!
 //! Labels are stored in a `BTreeMap`, because they are used as keys in the `Report`'s
 //! `HashMap` (and so we need to be able to derive `Hash` on the set of labels).
+//!
+//! At times, metric keys must be cloned---specifically, when creating a new entry in a
+//! `Sample` or `Report`.
 
 extern crate futures;
 extern crate hdrsample;

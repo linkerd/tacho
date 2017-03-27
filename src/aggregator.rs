@@ -34,6 +34,7 @@ impl Future for Aggregator {
     type Item = ();
     type Error = ();
     fn poll(&mut self) -> Poll<(), ()> {
+        trace!("poll");
         // First, obtain the report lock. It is unlocked when the report is dropped.
         match self.report.poll_lock() {
             Async::NotReady => Ok(Async::NotReady),
@@ -46,15 +47,19 @@ impl Future for Aggregator {
                     match self.samples.poll()? {
                         Async::NotReady => return Ok(Async::NotReady),
                         Async::Ready(None) => return Ok(Async::Ready(())),
-                        Async::Ready(Some(sample)) => {
+                        Async::Ready(Some(s)) => {
+                            trace!("procesing sample: counters={}, gauges={}, stats={}",
+                                   s.counters.len(),
+                                   s.gauges.len(),
+                                   s.stats.len());
                             // Update the report with new samples.
-                            for (k, v) in &sample.counters {
+                            for (k, v) in &s.counters {
                                 report.incr(k, *v);
                             }
-                            for (k, v) in &sample.gauges {
+                            for (k, v) in &s.gauges {
                                 report.set(k, *v);
                             }
-                            for (k, vs) in &sample.stats {
+                            for (k, vs) in &s.stats {
                                 report.add(k, vs);
                             }
                         }
@@ -63,6 +68,7 @@ impl Future for Aggregator {
 
                 // Yield back to the reactor so that work may continue, but inform the
                 // reactor that the Aggregator is ready to continue working.
+                trace!("yielding");
                 task::park().unpark();
                 Ok(Async::NotReady)
             }
@@ -91,6 +97,14 @@ impl Default for Report {
 impl Report {
     pub fn new() -> Report {
         Default::default()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.counters.is_empty() && self.gauges.is_empty() && self.stats.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.counters.len() + self.gauges.len() + self.stats.len()
     }
 
     fn incr(&mut self, k: &CounterKey, v: u64) {
