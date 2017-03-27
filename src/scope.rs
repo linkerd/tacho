@@ -1,5 +1,3 @@
-/// 10s in ms, or 10ms in us.
-const DEFAULT_TIMING_MAX: u64 = 10_000;
 use super::{CounterKey, GaugeKey, StatKey};
 use std::collections::BTreeMap;
 
@@ -35,7 +33,6 @@ impl Scope {
         GaugeKey::new(name, self.0.clone())
     }
 
-    // TODO should this include histogram info?
     pub fn stat_with_hint(&self, name: String, low: u64, high: u64) -> StatKey {
         StatKey::new(name, self.0.clone(), low, high)
     }
@@ -46,10 +43,10 @@ impl Scope {
     }
 
     pub fn timing_ms(&self, name: String) -> StatKey {
-        self.stat_with_hint(name, 1, DEFAULT_TIMING_MAX)
+        self.stat(name)
     }
 
     pub fn timing_us(&self, name: String) -> StatKey {
-        self.stat_with_hint(name, 1, DEFAULT_TIMING_MAX)
+        self.stat(name)
     }
 }

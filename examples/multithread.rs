@@ -7,7 +7,7 @@ extern crate tokio_core;
 extern crate tokio_timer;
 
 use futures::{Future, Stream};
-use futures::sync::BiLock;
+use futures::sync::{BiLock, oneshot};
 use std::io::{self, Write};
 use std::thread;
 use std::time::Duration;
@@ -22,26 +22,28 @@ fn main() {
 
     let Tacho { metrics, aggregator, report } = Tacho::default();
 
+    let (done_tx, done_rx) = oneshot::channel();
     let work_thread = {
         let metrics = metrics.clone().labeled("role".into(), "worker".into());
-        let total_time = metrics.scope().timing_ms("time_us".into());
-        let loop_counter = metrics.scope().counter("iters_count".into());
-        let loop_gauge = metrics.scope().gauge("iters_curr".into());
-        let loop_time = metrics.scope().timing_ms("time_ms".into());
+        let total_time_ms = metrics.scope().timing_ms("total_time_ms".into());
+        let loop_counter = metrics.scope().counter("loop_iters_count".into());
+        let loop_gauge = metrics.scope().gauge("loop_iters_curr".into());
+        let loop_time_us = metrics.scope().timing_ms("loop_time_us".into());
 
         let spawn_start = Timing::start();
         thread::spawn(move || {
-            for i in 0..100_000_000 {
+            for i in 0..1_000_000 {
                 let loop_start = Timing::start();
                 let mut r = metrics.recorder();
                 r.incr(&loop_counter, 1);
                 r.set(&loop_gauge, i);
-                r.add(&loop_time, loop_start.elapsed_us());
+                r.add(&loop_time_us, loop_start.elapsed_us());
             }
             {
                 let mut r = metrics.recorder();
-                r.add(&total_time, spawn_start.elapsed_ms());
+                r.add(&total_time_ms, spawn_start.elapsed_ms());
             }
+            done_tx.send(()).expect("could not send");
         })
     };
 
@@ -62,7 +64,8 @@ fn main() {
     let mut core = Core::new().expect("Failed to create core");
     core.handle().spawn(heartbeat);
     core.handle().spawn(reporter(Duration::from_secs(2), report));
-    core.run(aggregator).expect("heartbeat failed");
+    core.handle().spawn(aggregator);
+    core.run(done_rx).expect("heartbeat failed");
 
     work_thread.join().expect("work thread failed to join");
 }
