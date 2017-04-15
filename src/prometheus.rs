@@ -1,4 +1,4 @@
-use super::{Report, MetricKey};
+use super::Report;
 use std::collections::BTreeMap;
 use std::fmt::Display;
 
@@ -6,15 +6,12 @@ use std::fmt::Display;
 const BUF_SIZE: usize = 8 * 1024;
 
 /// Renders a `Report` for Prometheus.
-///
-/// ```
-/// ```
-pub fn format(report: &Report) -> String {
+pub fn format<R: Report>(report: &R) -> String {
     let mut out = String::with_capacity(BUF_SIZE);
 
     out.push_str(&format!("metrics_count {}\n", report.len()));
 
-    for (k, v) in &report.counters {
+    for (k, v) in report.counters() {
         let labels = k.labels();
         if labels.is_empty() {
             out.push_str(&format!("{} {}\n", k.name(), v));
@@ -23,7 +20,7 @@ pub fn format(report: &Report) -> String {
         }
     }
 
-    for (k, v) in &report.gauges {
+    for (k, v) in report.gauges() {
         let labels = k.labels();
         if labels.is_empty() {
             out.push_str(&format!("{} {}\n", k.name(), v));
@@ -32,7 +29,7 @@ pub fn format(report: &Report) -> String {
         }
     }
 
-    for (k, h) in &report.stats {
+    for (k, h) in report.stats() {
         let name = k.name();
         let labels = &{
             let labels = k.labels();

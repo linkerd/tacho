@@ -6,55 +6,56 @@ extern crate tacho;
 extern crate tokio_core;
 extern crate tokio_timer;
 
-use futures::{Future, Stream};
-use futures::sync::{BiLock, oneshot};
+use futures::{BoxFuture, Future, Stream};
+use futures::sync::oneshot;
 use std::io::{self, Write};
 use std::thread;
 use std::time::Duration;
-use tacho::{Tacho, Timing};
+use tacho::Timing;
 use tokio_core::reactor::Core;
 use tokio_timer::Timer;
 
-// A performance test for an asynchronous Metrics reporter with timers, counters, and
+// A performance test for an asynchronous Scope reporter with timers, counters, and
 // gauges.
 fn main() {
     drop(pretty_env_logger::init());
 
-    let Tacho { metrics, aggregator, report } = Tacho::default();
+    let (metrics, report) = tacho::new();
 
-    let (done_tx, done_rx) = oneshot::channel();
-    let work_thread = {
+    let (work_done_tx, work_done_rx) = oneshot::channel();
+    let reporter = {
+        let work_done_rx = work_done_rx.map_err(|_| ());
+        let interval = Duration::from_secs(2);
+        reporter(interval, work_done_rx, report)
+    };
+    {
         let metrics = metrics.clone().labeled("role".into(), "worker".into());
-        let total_time_ms = metrics.scope().timing_ms("total_time_ms".into());
-        let loop_counter = metrics.scope().counter("loop_iters_count".into());
-        let loop_gauge = metrics.scope().gauge("loop_iters_curr".into());
-        let loop_time_us = metrics.scope().timing_ms("loop_time_us".into());
+        let mut total_time_ms = metrics.gauge("total_time_ms".into());
+        let mut loop_counter = metrics.counter("loop_iters_count".into());
+        let mut loop_gauge = metrics.gauge("loop_iters_curr".into());
+        let mut loop_time_us = metrics.stat("loop_time_us".into());
 
         let spawn_start = Timing::start();
         thread::spawn(move || {
             for i in 0..1_000_000 {
                 let loop_start = Timing::start();
-                let mut r = metrics.recorder();
-                r.incr(&loop_counter, 1);
-                r.set(&loop_gauge, i);
-                r.add(&loop_time_us, loop_start.elapsed_us());
+                loop_counter.incr(1);
+                loop_gauge.set(i);
+                loop_time_us.add(loop_start.elapsed_us());
             }
-            {
-                let mut r = metrics.recorder();
-                r.add(&total_time_ms, spawn_start.elapsed_ms());
-            }
-            done_tx.send(()).expect("could not send");
-        })
-    };
+            total_time_ms.set(spawn_start.elapsed_ms());
+            work_done_tx.send(()).expect("could not send");
+        });
+    }
 
     let heartbeat = {
-        let metrics = metrics.clone().labeled("role".into(), "heartbeat".into());
-        let heartbeats = metrics.scope().gauge("heartbeats".into());
+        let metrics = metrics.labeled("role".into(), "heartbeat".into());
+        let mut heartbeats = metrics.gauge("heartbeats".into());
         Timer::default()
             .interval(Duration::from_secs(1))
             .fold(0, move |i, _| {
                 trace!("heartbeat");
-                metrics.recorder().set(&heartbeats, i);
+                heartbeats.set(i);
                 Ok(i + 1)
             })
             .map(|_| {})
@@ -63,40 +64,30 @@ fn main() {
 
     let mut core = Core::new().expect("Failed to create core");
     core.handle().spawn(heartbeat);
-    core.handle().spawn(reporter(Duration::from_secs(2), report));
-    core.handle().spawn(aggregator);
-    core.run(done_rx).expect("heartbeat failed");
-
-    work_thread.join().expect("work thread failed to join");
+    core.run(reporter).expect("failed to run reporter");
 }
 
-
-// Prints a report to stdout.
-pub fn print_report(report: &tacho::Report) {
-    let stdout = io::stdout();
-    let mut handle = stdout.lock();
-    let _ = handle.write_all(tacho::prometheus::format(report).as_bytes());
-}
-
-// Returns a Future that periodically prints a report to stdout.
-pub fn reporter(interval: Duration,
-                report: BiLock<tacho::Report>)
-                -> Box<Future<Item = (), Error = ()>> {
-    Timer::default()
-        // TODO: make this configurable
-        .interval(interval)
-        .map_err(|_| ())
-        .fold(report, move |report, _| {
-            report.lock().map(move |mut report| {
-                trace!("reporting");
-                // TODO: this should write to an Arc<RwLock<String>> that's been
-                // passed in or to a Sender<String> that's listening for new reports.
-                print_report(&report);
-                println!("");
-                report.reset();
-                report.unlock()
+/// Prints a report every `interval` and when the `done` is satisfied.
+fn reporter<D>(interval: Duration, done: D, reporter: tacho::Reporter) -> BoxFuture<(), ()>
+    where D: Future<Item = (), Error = ()> + Send + 'static
+{
+    let periodic = {
+        let mut reporter = reporter.clone();
+        Timer::default()
+            .interval(interval)
+            .map_err(|_| {})
+            .for_each(move |_| {
+                print_report(&reporter.take());
+                Ok(())
             })
-        })
-        .map(|_| {})
-        .boxed()
+    };
+    let done = done.map(move |_| { print_report(&reporter.peek()); });
+    periodic.select(done).map(|_| {}).map_err(|_| {}).boxed()
+}
+
+fn print_report<R: tacho::Report>(report: &R) {
+    let stdout = io::stdout();
+    let mut stdout = stdout.lock();
+    let _ = stdout.write(b"\n");
+    let _ = stdout.write_all(tacho::prometheus::format(report).as_bytes());
 }

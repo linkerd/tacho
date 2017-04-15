@@ -6,44 +6,37 @@ extern crate tokio_timer;
 
 use futures::{Future, future};
 use std::time::Duration;
-use tacho::{Tacho, Timing};
+use tacho::Timing;
 use tokio_core::reactor::Core;
 use tokio_timer::Timer;
 
 fn main() {
     drop(pretty_env_logger::init());
 
-    // Create a new tacho pipeline.
-    let Tacho { metrics, aggregator, report } = Tacho::default();
-
-    let reported = do_work(metrics).and_then(move |_| {
+    let (metrics, reporter) = tacho::new();
+    let reported = do_work(metrics.clone()).and_then(move |_| {
         Timer::default()
             .sleep(Duration::from_millis(1000))
             .map_err(|_| {})
-            .and_then(|_| {
-                report.lock().map(|report| {
-                    println!("# metrics:");
-                    println!("");
-                    println!("{}", tacho::prometheus::format(&report));
-                })
+            .map(move |_| {
+                let r = reporter.peek();
+                println!("# metrics:");
+                println!("");
+                println!("{}", tacho::prometheus::format(&r));
             })
     });
 
     let mut core = Core::new().expect("could not create core");
-    core.handle().spawn(aggregator);
     core.run(reported).expect("reactor failed");
 }
 
-fn do_work(metrics: tacho::Metrics) -> future::BoxFuture<(), ()> {
+fn do_work(metrics: tacho::Scope) -> future::BoxFuture<(), ()> {
     let metrics = metrics.labeled("labelkey".into(), "labelval".into());
-    let iter_time_us = metrics.scope().stat("iter_time_us".into());
+    let iter_time_us = metrics.stat("iter_time_us".into());
     let timer = Timer::default();
     future::loop_fn(100, move |n| {
             // Clones are shallow, minimizing allocation.
-            let iter_time_us = iter_time_us.clone();
-
-            // An RAII-gaurded recorder flushes data
-            let mut recorder = metrics.recorder();
+            let mut iter_time_us = iter_time_us.clone();
 
             let start = Timing::start();
             timer.sleep(Duration::from_millis(20 * (n % 5)))
@@ -51,7 +44,7 @@ fn do_work(metrics: tacho::Metrics) -> future::BoxFuture<(), ()> {
                 .map(move |_| if n == 0 {
                     future::Loop::Break(n)
                 } else {
-                    recorder.add(&iter_time_us, start.elapsed_us());
+                    iter_time_us.add(start.elapsed_us());
                     future::Loop::Continue(n - 1)
                 })
         })
