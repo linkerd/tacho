@@ -32,7 +32,7 @@ fn main() {
 
         let spawn_start = Timing::start();
         thread::spawn(move || {
-            for i in 0..1_000_000 {
+            for i in 0..100_000_000 {
                 let loop_start = Timing::start();
                 let mut r = metrics.recorder();
                 r.incr(&loop_counter, 1);

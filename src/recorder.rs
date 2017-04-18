@@ -1,8 +1,9 @@
 use super::{CounterKey, GaugeKey, StatKey};
 use futures::sync::mpsc;
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::mem;
 use twox_hash::RandomXxHashBuilder;
+use ordermap::OrderMap;
 
 pub fn factory(tx: mpsc::UnboundedSender<Sample>) -> RecorderFactory {
     RecorderFactory(tx)
@@ -72,16 +73,16 @@ impl Drop for Recorder {
 /// Stores the results from a a `Record` instance.
 #[derive(Clone, Debug)]
 pub struct Sample {
-    pub counters: HashMap<CounterKey, u64, RandomXxHashBuilder>,
-    pub gauges: HashMap<GaugeKey, u64, RandomXxHashBuilder>,
-    pub stats: HashMap<StatKey, VecDeque<u64>, RandomXxHashBuilder>,
+    pub counters: OrderMap<CounterKey, u64, RandomXxHashBuilder>,
+    pub gauges: OrderMap<GaugeKey, u64, RandomXxHashBuilder>,
+    pub stats: OrderMap<StatKey, VecDeque<u64>, RandomXxHashBuilder>,
 }
 impl Default for Sample {
     fn default() -> Sample {
         Sample {
-            counters: HashMap::default(),
-            gauges: HashMap::default(),
-            stats: HashMap::default(),
+            counters: OrderMap::default(),
+            gauges: OrderMap::default(),
+            stats: OrderMap::default(),
         }
     }
 }

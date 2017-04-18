@@ -2,8 +2,10 @@ use super::{Sample, CounterKey, GaugeKey, StatKey};
 use futures::{Async, Poll, Future, Stream, task};
 use futures::sync::{BiLock, mpsc};
 use hdrsample::Histogram;
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use twox_hash::RandomXxHashBuilder;
+use ordermap::OrderMap;
+use twox_hash::XxHash;
 
 pub fn new(samples: mpsc::UnboundedReceiver<Sample>,
            report: BiLock<Report>,
@@ -80,16 +82,16 @@ impl Future for Aggregator {
 /// Stores aggregated metrics.
 #[derive(Clone)]
 pub struct Report {
-    pub counters: HashMap<CounterKey, u64, RandomXxHashBuilder>,
-    pub gauges: HashMap<GaugeKey, u64, RandomXxHashBuilder>,
-    pub stats: HashMap<StatKey, Histogram<u64>, RandomXxHashBuilder>,
+    pub counters: OrderMap<CounterKey, u64, RandomXxHashBuilder>,
+    pub gauges: OrderMap<GaugeKey, u64, RandomXxHashBuilder>,
+    pub stats: OrderMap<StatKey, Histogram<u64>, RandomXxHashBuilder>,
 }
 impl Default for Report {
     fn default() -> Report {
         Report {
-            counters: HashMap::default(),
-            gauges: HashMap::default(),
-            stats: HashMap::default(),
+            counters: OrderMap::default(),
+            gauges: OrderMap::default(),
+            stats: OrderMap::default(),
         }
     }
 }
