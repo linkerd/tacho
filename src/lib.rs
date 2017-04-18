@@ -12,7 +12,7 @@
 //! by `Reporter` and `Sample`.
 //!
 //! Labels are stored in a `BTreeMap`, because they are used as keys in the `Report`'s
-//! `HashMap` (and so we need to be able to derive `Hash` on the set of labels).
+//! `OrderMap` (and so we need to be able to derive `Hash` on the set of labels).
 //!
 //! At times, metric keys must be cloned---specifically, when creating a new entry in a
 //! `Sample` or `Report`.
@@ -23,6 +23,7 @@ extern crate tokio_timer;
 #[macro_use]
 extern crate log;
 extern crate twox_hash;
+extern crate ordermap;
 
 use futures::sync::{BiLock, mpsc};
 
