@@ -31,7 +31,7 @@ pub fn format<R: Report>(report: &R) -> String {
 
     for (k, h) in report.stats() {
         let name = k.name();
-        let labels = &{
+        let labels = {
             let labels = k.labels();
             if labels.is_empty() {
                 "".to_string()
@@ -39,6 +39,7 @@ pub fn format<R: Report>(report: &R) -> String {
                 format!(", {}", format_labels(labels))
             }
         };
+        let labels = &labels;
         out.push_str(&format_stat("count", name, labels, h.count()));
         out.push_str(&format_stat("mean", name, labels, h.mean()));
         out.push_str(&format_stat("min", name, labels, h.min()));

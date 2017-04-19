@@ -22,9 +22,15 @@ pub struct Reporter {
 impl Reporter {
     /// Obtains a read-only view of a metrics report without clearing the underlying state.
     pub fn peek(&self) -> ReportPeek {
-        let counters = self.counters.read().expect("failed to obtain read lock for counters");
-        let gauges = self.gauges.read().expect("failed to obtain read lock for gauges");
-        let stats = self.stats.read().expect("failed to obtain read lock for stats");
+        let counters = self.counters
+            .read()
+            .expect("failed to obtain read lock for counters");
+        let gauges = self.gauges
+            .read()
+            .expect("failed to obtain read lock for gauges");
+        let stats = self.stats
+            .read()
+            .expect("failed to obtain read lock for stats");
         ReportPeek {
             counters: counters,
             gauges: gauges,
@@ -38,7 +44,9 @@ impl Reporter {
     pub fn take(&mut self) -> ReportTake {
         // Copy counters.
         let counters: CounterMap = {
-            let orig = self.counters.read().expect("failed to obtain write lock for counters");
+            let orig = self.counters
+                .read()
+                .expect("failed to obtain write lock for counters");
             let mut snap = CounterMap::default();
             for (k, v) in orig.iter() {
                 snap.insert(k.clone(), *v);
@@ -48,7 +56,9 @@ impl Reporter {
 
         // Reset gauges.
         let gauges = {
-            let mut orig = self.gauges.write().expect("failed to obtain write lock for gauges");
+            let mut orig = self.gauges
+                .write()
+                .expect("failed to obtain write lock for gauges");
             let mut snap = GaugeMap::default();
             for (k, v) in orig.drain() {
                 snap.insert(k, v);
@@ -58,7 +68,9 @@ impl Reporter {
 
         // Reset stats.
         let stats = {
-            let mut orig = self.stats.write().expect("failed to obtain write lock for stats");
+            let mut orig = self.stats
+                .write()
+                .expect("failed to obtain write lock for stats");
             let mut snap = StatMap::default();
             for (k, v) in orig.drain() {
                 snap.insert(k, v);

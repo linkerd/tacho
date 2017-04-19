@@ -1,6 +1,6 @@
 # Tacho #
 
-A [Tokio][tokio]/[Futures][futures]-aware metrics library.
+A [Prometheus][prom]-focused metrics library for Rust.
 
 - Inspired by [finagle-stats][finagle].
 - Supports [Prometheus][prom]-style labels and formatting.
@@ -16,6 +16,4 @@ http://www.apache.org/licenses/LICENSE-2.0
 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 
 [finagle]: https://github.com/twitter/finagle
-[futures]: https://github.com/alexcrichton/futures-rs
 [prom]: https://prometheus.io
-[tokio]: https://tokio.rs

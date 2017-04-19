@@ -16,9 +16,7 @@
 
 // TODO use atomics when we have them.
 
-extern crate futures;
 extern crate hdrsample;
-extern crate tokio_timer;
 #[macro_use]
 extern crate log;
 extern crate twox_hash;
@@ -173,7 +171,9 @@ impl Counter {
     }
 
     pub fn incr(&mut self, v: u64) {
-        let mut counters = self.counters.write().expect("failed to obtain write lock for counter");
+        let mut counters = self.counters
+            .write()
+            .expect("failed to obtain write lock for counter");
         if let Some(mut curr) = counters.get_mut(&self.key) {
             *curr += v;
             return;
@@ -197,7 +197,9 @@ impl Gauge {
     }
 
     pub fn set(&mut self, v: u64) {
-        let mut gauges = self.gauges.write().expect("failed to obtain write lock for gauge");
+        let mut gauges = self.gauges
+            .write()
+            .expect("failed to obtain write lock for gauge");
         if let Some(mut curr) = gauges.get_mut(&self.key) {
             *curr = v;
             return;
@@ -230,7 +232,9 @@ impl Stat {
 
     pub fn add_values(&mut self, vs: &[u64]) {
         trace!("histo record {:?} {:?}", self.key, vs);
-        let mut stats = self.stats.write().expect("failed to obtain write lock for stat");
+        let mut stats = self.stats
+            .write()
+            .expect("failed to obtain write lock for stat");
         if let Some(mut histo) = stats.get_mut(&self.key) {
             for v in vs {
                 if let Err(e) = histo.record(*v) {
@@ -272,7 +276,8 @@ mod tests {
         {
             let report = reporter.peek();
             {
-                let k = report.counters()
+                let k = report
+                    .counters()
                     .keys()
                     .find(|k| k.name() == "happy_accidents")
                     .expect("expected counter");
@@ -280,17 +285,22 @@ mod tests {
                 assert_eq!(report.counters().get(&k), Some(&1));
             }
             {
-                let k = report.gauges()
+                let k = report
+                    .gauges()
                     .keys()
                     .find(|k| k.name() == "paint_level")
                     .expect("expected gauge");
                 assert_eq!(k.labels.get("joy"), Some(&"painting".to_string()));
                 assert_eq!(report.gauges().get(&k), Some(&2));
             }
-            assert_eq!(report.gauges().keys().find(|k| k.name() == "brush_width"),
+            assert_eq!(report
+                           .gauges()
+                           .keys()
+                           .find(|k| k.name() == "brush_width"),
                        None);
             {
-                let k = report.stats()
+                let k = report
+                    .stats()
                     .keys()
                     .find(|k| k.name() == "stroke_len")
                     .expect("expected stat");
@@ -307,7 +317,8 @@ mod tests {
         {
             let report = reporter.peek();
             {
-                let k = report.counters()
+                let k = report
+                    .counters()
                     .keys()
                     .find(|k| k.name() == "happy_accidents")
                     .expect("expected counter");
@@ -315,7 +326,8 @@ mod tests {
                 assert_eq!(report.counters().get(&k), Some(&3));
             }
             {
-                let k = report.gauges()
+                let k = report
+                    .gauges()
                     .keys()
                     .find(|k| k.name() == "paint_level")
                     .expect("expected gauge");
@@ -323,7 +335,8 @@ mod tests {
                 assert_eq!(report.gauges().get(&k), Some(&2));
             }
             {
-                let k = report.gauges()
+                let k = report
+                    .gauges()
                     .keys()
                     .find(|k| k.name() == "brush_width")
                     .expect("expected gauge");
@@ -331,7 +344,8 @@ mod tests {
                 assert_eq!(report.gauges().get(&k), Some(&5));
             }
             {
-                let k = report.stats()
+                let k = report
+                    .stats()
                     .keys()
                     .find(|k| k.name() == "stroke_len")
                     .expect("expeced stat");
@@ -339,7 +353,8 @@ mod tests {
                 assert!(report.stats().contains_key(&k));
             }
             {
-                let k = report.stats()
+                let k = report
+                    .stats()
                     .keys()
                     .find(|k| k.name() == "tree_len")
                     .expect("expeced stat");
@@ -360,7 +375,8 @@ mod tests {
         {
             let report = reporter.take();
             {
-                let k = report.counters()
+                let k = report
+                    .counters()
                     .keys()
                     .find(|k| k.name() == "happy_accidents")
                     .expect("expected counter");
@@ -368,17 +384,22 @@ mod tests {
                 assert_eq!(report.counters().get(&k), Some(&1));
             }
             {
-                let k = report.gauges()
+                let k = report
+                    .gauges()
                     .keys()
                     .find(|k| k.name() == "paint_level")
                     .expect("expected gauge");
                 assert_eq!(k.labels.get("joy"), Some(&"painting".to_string()));
                 assert_eq!(report.gauges().get(&k), Some(&2));
             }
-            assert_eq!(report.gauges().keys().find(|k| k.name() == "brush_width"),
+            assert_eq!(report
+                           .gauges()
+                           .keys()
+                           .find(|k| k.name() == "brush_width"),
                        None);
             {
-                let k = report.stats()
+                let k = report
+                    .stats()
                     .keys()
                     .find(|k| k.name() == "stroke_len")
                     .expect("expected stat");
@@ -394,17 +415,22 @@ mod tests {
         {
             let report = reporter.take();
             {
-                let k = report.counters()
+                let k = report
+                    .counters()
                     .keys()
                     .find(|k| k.name() == "happy_accidents")
                     .expect("expected counter");
                 assert_eq!(k.labels.get("joy"), Some(&"painting".to_string()));
                 assert_eq!(report.counters().get(&k), Some(&3));
             }
-            assert_eq!(report.gauges().keys().find(|k| k.name() == "paint_level"),
+            assert_eq!(report
+                           .gauges()
+                           .keys()
+                           .find(|k| k.name() == "paint_level"),
                        None);
             {
-                let k = report.gauges()
+                let k = report
+                    .gauges()
                     .keys()
                     .find(|k| k.name() == "brush_width")
                     .expect("expected gauge");
@@ -414,7 +440,8 @@ mod tests {
             assert_eq!(report.stats().keys().find(|k| k.name() == "stroke_len"),
                        None);
             {
-                let k = report.stats()
+                let k = report
+                    .stats()
                     .keys()
                     .find(|k| k.name() == "tree_len")
                     .expect("expeced stat");
