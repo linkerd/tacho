@@ -37,7 +37,7 @@ fn main() {
 
         let spawn_start = Timing::start();
         thread::spawn(move || {
-            for i in 0..1_000_000 {
+            for i in 0..100_000_000 {
                 let loop_start = Timing::start();
                 loop_counter.incr(1);
                 loop_gauge.set(i);
@@ -81,12 +81,10 @@ fn reporter<D>(interval: Duration, done: D, reporter: tacho::Reporter) -> BoxFut
                           Ok(())
                       })
     };
-    let done = done.map(move |_| { print_report(&reporter.peek()); });
-    periodic
-        .select(done)
-        .map(|_| {})
-        .map_err(|_| {})
-        .boxed()
+    let done = done.map(move |_| {
+        print_report(&reporter.peek());
+    });
+    periodic.select(done).map(|_| {}).map_err(|_| {}).boxed()
 }
 
 fn print_report<R: tacho::Report>(report: &R) {

@@ -1,5 +1,5 @@
-use super::{CounterMap, GaugeMap, StatMap};
 use std::sync::{Arc, RwLock, RwLockReadGuard};
+use super::{CounterMap, GaugeMap, StatMap};
 
 pub fn new(counters: Arc<RwLock<CounterMap>>,
            gauges: Arc<RwLock<GaugeMap>>,
@@ -60,7 +60,7 @@ impl Reporter {
                 .write()
                 .expect("failed to obtain write lock for gauges");
             let mut snap = GaugeMap::default();
-            for (k, v) in orig.drain() {
+            for (k, v) in orig.drain(..) {
                 snap.insert(k, v);
             }
             snap
@@ -72,7 +72,7 @@ impl Reporter {
                 .write()
                 .expect("failed to obtain write lock for stats");
             let mut snap = StatMap::default();
-            for (k, v) in orig.drain() {
+            for (k, v) in orig.drain(..) {
                 snap.insert(k, v);
             }
             snap

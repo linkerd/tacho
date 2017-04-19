@@ -12,6 +12,7 @@ readme = "README.md"
 hdrsample = "3.0"
 twox-hash = "1.0"
 log = "0.3"
+ordermap = "0.2.10"
 
 [dev-dependencies]
 tokio-timer = "0.1"
