@@ -77,12 +77,16 @@ fn reporter<D>(interval: Duration, done: D, reporter: tacho::Reporter) -> BoxFut
             .interval(interval)
             .map_err(|_| {})
             .for_each(move |_| {
-                print_report(&reporter.take());
-                Ok(())
-            })
+                          print_report(&reporter.take());
+                          Ok(())
+                      })
     };
     let done = done.map(move |_| { print_report(&reporter.peek()); });
-    periodic.select(done).map(|_| {}).map_err(|_| {}).boxed()
+    periodic
+        .select(done)
+        .map(|_| {})
+        .map_err(|_| {})
+        .boxed()
 }
 
 fn print_report<R: tacho::Report>(report: &R) {
