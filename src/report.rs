@@ -1,5 +1,5 @@
-use std::sync::{Arc, RwLock, RwLockReadGuard};
 use super::{CounterMap, GaugeMap, StatMap};
+use std::sync::{Arc, RwLock, RwLockReadGuard};
 
 pub fn new(counters: Arc<RwLock<CounterMap>>,
            gauges: Arc<RwLock<GaugeMap>>,
