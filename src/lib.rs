@@ -20,10 +20,11 @@ extern crate hdrsample;
 #[macro_use]
 extern crate log;
 extern crate twox_hash;
+extern crate ordermap;
 
 use hdrsample::Histogram;
+use ordermap::OrderMap;
 use std::collections::BTreeMap;
-use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use twox_hash::RandomXxHashBuilder;
 
@@ -35,9 +36,9 @@ pub use report::{Reporter, Report, ReportTake, ReportPeek};
 pub use timing::Timing;
 
 type Labels = BTreeMap<String, String>;
-type CounterMap = HashMap<Key, u64, RandomXxHashBuilder>;
-type GaugeMap = HashMap<Key, u64, RandomXxHashBuilder>;
-type StatMap = HashMap<Key, Histogram<u64>, RandomXxHashBuilder>;
+type CounterMap = OrderMap<Key, u64, RandomXxHashBuilder>;
+type GaugeMap = OrderMap<Key, u64, RandomXxHashBuilder>;
+type StatMap = OrderMap<Key, Histogram<u64>, RandomXxHashBuilder>;
 
 /// Creates a metrics registry.
 ///

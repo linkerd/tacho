@@ -60,7 +60,7 @@ impl Reporter {
                 .write()
                 .expect("failed to obtain write lock for gauges");
             let mut snap = GaugeMap::default();
-            for (k, v) in orig.drain() {
+            for (k, v) in orig.drain(..) {
                 snap.insert(k, v);
             }
             snap
@@ -72,7 +72,7 @@ impl Reporter {
                 .write()
                 .expect("failed to obtain write lock for stats");
             let mut snap = StatMap::default();
-            for (k, v) in orig.drain() {
+            for (k, v) in orig.drain(..) {
                 snap.insert(k, v);
             }
             snap

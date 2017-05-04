@@ -1,7 +1,7 @@
 [package]
 name = "tacho"
 description = "A prometheus-focused metrics library"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Steve Jenson <stevej@buoyant.io>",
            "Oliver Gould <oliver@buoyant.io>"]
 repository = "https://github.com/BuoyantIO/tacho"
@@ -12,6 +12,7 @@ readme = "README.md"
 hdrsample = "3.0"
 twox-hash = "1.0"
 log = "0.3"
+ordermap = "0.2.10"
 
 [dev-dependencies]
 tokio-timer = "0.1"
