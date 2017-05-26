@@ -1,6 +1,7 @@
 use super::Report;
 use std::collections::BTreeMap;
 use std::fmt::Display;
+use std::sync::atomic::Ordering;
 
 // The initial size
 const BUF_SIZE: usize = 8 * 1024;
@@ -12,6 +13,7 @@ pub fn format<R: Report>(report: &R) -> String {
     out.push_str(&format!("metrics_count {}\n", report.len()));
 
     for (k, v) in report.counters() {
+        let v = v.load(Ordering::Relaxed);
         let labels = k.labels();
         if labels.is_empty() {
             out.push_str(&format!("{} {}\n", k.name(), v));
@@ -21,6 +23,7 @@ pub fn format<R: Report>(report: &R) -> String {
     }
 
     for (k, v) in report.gauges() {
+        let v = v.load(Ordering::Relaxed);
         let labels = k.labels();
         if labels.is_empty() {
             out.push_str(&format!("{} {}\n", k.name(), v));
