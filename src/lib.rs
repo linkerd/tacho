@@ -25,7 +25,7 @@ extern crate ordermap;
 use hdrsample::Histogram;
 use ordermap::OrderMap;
 use std::collections::BTreeMap;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex};
 use twox_hash::RandomXxHashBuilder;
 
 pub mod prometheus;
@@ -47,9 +47,9 @@ type StatMap = OrderMap<Key, Histogram<u64>, RandomXxHashBuilder>;
 ///
 /// The returned `Reporter` supports consumption of metrics values.
 pub fn new() -> (Scope, Reporter) {
-    let counters = Arc::new(RwLock::new(CounterMap::default()));
-    let gauges = Arc::new(RwLock::new(GaugeMap::default()));
-    let stats = Arc::new(RwLock::new(StatMap::default()));
+    let counters = Arc::new(Mutex::new(CounterMap::default()));
+    let gauges = Arc::new(Mutex::new(GaugeMap::default()));
+    let stats = Arc::new(Mutex::new(StatMap::default()));
 
     let scope = Scope {
         labels: Labels::default(),
@@ -95,9 +95,9 @@ impl Key {
 #[derive(Clone)]
 pub struct Scope {
     labels: Labels,
-    counters: Arc<RwLock<CounterMap>>,
-    gauges: Arc<RwLock<GaugeMap>>,
-    stats: Arc<RwLock<StatMap>>,
+    counters: Arc<Mutex<CounterMap>>,
+    gauges: Arc<Mutex<GaugeMap>>,
+    stats: Arc<Mutex<StatMap>>,
 }
 
 impl Scope {
@@ -161,7 +161,7 @@ impl Scope {
 #[derive(Clone)]
 pub struct Counter {
     key: Key,
-    counters: Arc<RwLock<CounterMap>>,
+    counters: Arc<Mutex<CounterMap>>,
 }
 impl Counter {
     pub fn name(&self) -> &str {
@@ -173,7 +173,7 @@ impl Counter {
 
     pub fn incr(&mut self, v: u64) {
         let mut counters = self.counters
-            .write()
+            .lock()
             .expect("failed to obtain write lock for counter");
         if let Some(mut curr) = counters.get_mut(&self.key) {
             *curr += v;
@@ -187,7 +187,7 @@ impl Counter {
 #[derive(Clone)]
 pub struct Gauge {
     key: Key,
-    gauges: Arc<RwLock<GaugeMap>>,
+    gauges: Arc<Mutex<GaugeMap>>,
 }
 impl Gauge {
     pub fn name(&self) -> &str {
@@ -199,7 +199,7 @@ impl Gauge {
 
     pub fn set(&mut self, v: u64) {
         let mut gauges = self.gauges
-            .write()
+            .lock()
             .expect("failed to obtain write lock for gauge");
         if let Some(mut curr) = gauges.get_mut(&self.key) {
             *curr = v;
@@ -213,7 +213,7 @@ impl Gauge {
 #[derive(Clone)]
 pub struct Stat {
     key: Key,
-    stats: Arc<RwLock<StatMap>>,
+    stats: Arc<Mutex<StatMap>>,
     bounds: Option<(u64, u64)>,
 }
 
@@ -234,7 +234,7 @@ impl Stat {
     pub fn add_values(&mut self, vs: &[u64]) {
         trace!("histo record {:?} {:?}", self.key, vs);
         let mut stats = self.stats
-            .write()
+            .lock()
             .expect("failed to obtain write lock for stat");
         if let Some(mut histo) = stats.get_mut(&self.key) {
             for v in vs {
