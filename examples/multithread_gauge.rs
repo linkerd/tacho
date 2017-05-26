@@ -39,18 +39,18 @@ fn main() {
     let loop_counter = metrics.counter("loop_counter".into());
     let max_loop_time_us = metrics.gauge("loop_time_max_us".into());
     for work_done_tx in vec![work_done_tx0, work_done_tx1] {
-        let mut loop_counter = loop_counter.clone();
-        let mut max_loop_time_us = max_loop_time_us.clone();
+        let loop_counter = loop_counter.clone();
+        let max_loop_time_us = max_loop_time_us.clone();
         thread::spawn(move || {
-            let mut max = 0;
-            let mut prior = 0;
+            let mut max: usize = 0;
+            let mut prior: usize = 0;
             for _ in 0..2_000_000 {
                 loop_counter.incr(1);
                 max = cmp::max(max, prior);
 
                 let t0 = Timing::start();
                 max_loop_time_us.set(max);
-                prior = t0.elapsed_us();
+                prior = t0.elapsed_us() as usize;
             }
 
             max = cmp::max(max, prior);
@@ -82,6 +82,6 @@ fn reporter<D>(interval: Duration, done: D, reporter: tacho::Reporter) -> BoxFut
     periodic.select(done).map(|_| {}).map_err(|_| {}).boxed()
 }
 
-fn print_report<R: tacho::Report>(report: &R) {
+fn print_report(report: &tacho::Report) {
     info!("\n{}", tacho::prometheus::format(report));
 }

@@ -1,12 +1,11 @@
-use super::Report;
-use std::collections::BTreeMap;
+use super::{Labels, Report};
 use std::fmt::Display;
 
 // The initial size
 const BUF_SIZE: usize = 8 * 1024;
 
 /// Renders a `Report` for Prometheus.
-pub fn format<R: Report>(report: &R) -> String {
+pub fn format(report: &Report) -> String {
     let mut out = String::with_capacity(BUF_SIZE);
 
     for (k, v) in report.counters() {
@@ -60,7 +59,7 @@ fn format_stat<V: Display>(stat: &str, name: &str, labels: &str, v: V) -> String
     out
 }
 
-fn format_labels(labels: &BTreeMap<String, String>) -> String {
+fn format_labels(labels: &Labels) -> String {
     let mut out = String::with_capacity(16 * 1024);
     let sz = labels.len();
     for (i, (k, v)) in labels.iter().enumerate() {

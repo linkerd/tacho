@@ -38,16 +38,16 @@ fn main() {
     let loop_counter = metrics.counter("loop_counter".into());
     let loop_time_us = metrics.counter("loop_time_total_us".into());
     for work_done_tx in vec![work_done_tx0, work_done_tx1] {
-        let mut loop_counter = loop_counter.clone();
-        let mut loop_time_us = loop_time_us.clone();
+        let loop_counter = loop_counter.clone();
+        let loop_time_us = loop_time_us.clone();
         thread::spawn(move || {
-            let mut prior = 0;
+            let mut prior: usize = 0;
             for _ in 0..2_000_000 {
                 loop_counter.incr(1);
 
                 let t0 = Timing::start();
                 loop_time_us.incr(prior);
-                prior = t0.elapsed_us();
+                prior = t0.elapsed_us() as usize;
             }
             loop_time_us.incr(prior);
             work_done_tx.send(()).expect("could not send");
@@ -76,6 +76,6 @@ fn reporter<D>(interval: Duration, done: D, reporter: tacho::Reporter) -> BoxFut
     periodic.select(done).map(|_| {}).map_err(|_| {}).boxed()
 }
 
-fn print_report<R: tacho::Report>(report: &R) {
+fn print_report(report: &tacho::Report) {
     info!("\n{}", tacho::prometheus::format(report));
 }
