@@ -1,9 +1,9 @@
 use super::{CounterMap, GaugeMap, StatMap};
-use std::sync::{Arc, RwLock, RwLockReadGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 
-pub fn new(counters: Arc<RwLock<CounterMap>>,
-           gauges: Arc<RwLock<GaugeMap>>,
-           stats: Arc<RwLock<StatMap>>)
+pub fn new(counters: Arc<Mutex<CounterMap>>,
+           gauges: Arc<Mutex<GaugeMap>>,
+           stats: Arc<Mutex<StatMap>>)
            -> Reporter {
     Reporter {
         counters: counters,
@@ -14,22 +14,22 @@ pub fn new(counters: Arc<RwLock<CounterMap>>,
 
 #[derive(Clone)]
 pub struct Reporter {
-    counters: Arc<RwLock<CounterMap>>,
-    gauges: Arc<RwLock<GaugeMap>>,
-    stats: Arc<RwLock<StatMap>>,
+    counters: Arc<Mutex<CounterMap>>,
+    gauges: Arc<Mutex<GaugeMap>>,
+    stats: Arc<Mutex<StatMap>>,
 }
 
 impl Reporter {
     /// Obtains a read-only view of a metrics report without clearing the underlying state.
     pub fn peek(&self) -> ReportPeek {
         let counters = self.counters
-            .read()
+            .lock()
             .expect("failed to obtain read lock for counters");
         let gauges = self.gauges
-            .read()
+            .lock()
             .expect("failed to obtain read lock for gauges");
         let stats = self.stats
-            .read()
+            .lock()
             .expect("failed to obtain read lock for stats");
         ReportPeek {
             counters: counters,
@@ -45,7 +45,7 @@ impl Reporter {
         // Copy counters.
         let counters: CounterMap = {
             let orig = self.counters
-                .read()
+                .lock()
                 .expect("failed to obtain write lock for counters");
             let mut snap = CounterMap::default();
             for (k, v) in orig.iter() {
@@ -57,7 +57,7 @@ impl Reporter {
         // Reset gauges.
         let gauges = {
             let mut orig = self.gauges
-                .write()
+                .lock()
                 .expect("failed to obtain write lock for gauges");
             let mut snap = GaugeMap::default();
             for (k, v) in orig.drain(..) {
@@ -69,7 +69,7 @@ impl Reporter {
         // Reset stats.
         let stats = {
             let mut orig = self.stats
-                .write()
+                .lock()
                 .expect("failed to obtain write lock for stats");
             let mut snap = StatMap::default();
             for (k, v) in orig.drain(..) {
@@ -95,9 +95,9 @@ pub trait Report {
 }
 
 pub struct ReportPeek<'a> {
-    counters: RwLockReadGuard<'a, CounterMap>,
-    gauges: RwLockReadGuard<'a, GaugeMap>,
-    stats: RwLockReadGuard<'a, StatMap>,
+    counters: MutexGuard<'a, CounterMap>,
+    gauges: MutexGuard<'a, GaugeMap>,
+    stats: MutexGuard<'a, StatMap>,
 }
 impl<'a> Report for ReportPeek<'a> {
     fn counters(&self) -> &CounterMap {
