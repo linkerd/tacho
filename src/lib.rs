@@ -294,10 +294,7 @@ mod tests {
                 assert_eq!(k.labels.get("joy"), Some(&"painting".to_string()));
                 assert_eq!(report.gauges().get(&k), Some(&2));
             }
-            assert_eq!(report
-                           .gauges()
-                           .keys()
-                           .find(|k| k.name() == "brush_width"),
+            assert_eq!(report.gauges().keys().find(|k| k.name() == "brush_width"),
                        None);
             {
                 let k = report
@@ -393,10 +390,7 @@ mod tests {
                 assert_eq!(k.labels.get("joy"), Some(&"painting".to_string()));
                 assert_eq!(report.gauges().get(&k), Some(&2));
             }
-            assert_eq!(report
-                           .gauges()
-                           .keys()
-                           .find(|k| k.name() == "brush_width"),
+            assert_eq!(report.gauges().keys().find(|k| k.name() == "brush_width"),
                        None);
             {
                 let k = report
@@ -424,10 +418,7 @@ mod tests {
                 assert_eq!(k.labels.get("joy"), Some(&"painting".to_string()));
                 assert_eq!(report.counters().get(&k), Some(&3));
             }
-            assert_eq!(report
-                           .gauges()
-                           .keys()
-                           .find(|k| k.name() == "paint_level"),
+            assert_eq!(report.gauges().keys().find(|k| k.name() == "paint_level"),
                        None);
             {
                 let k = report
