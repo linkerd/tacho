@@ -321,7 +321,7 @@ mod tests {
                     .find(|k| k.name() == "happy_accidents")
                     .expect("expected counter");
                 assert_eq!(k.labels.get("joy"), Some(&"painting".to_string()));
-                assert_eq!(report.gauges().get(&k).map(|g| g.load(Ordering::Relaxed)),
+                assert_eq!(report.counters().get(&k).map(|g| g.load(Ordering::Relaxed)),
                            Some(3));
             }
             {
@@ -382,7 +382,8 @@ mod tests {
                     .find(|k| k.name() == "happy_accidents")
                     .expect("expected counter");
                 assert_eq!(k.labels.get("joy"), Some(&"painting".to_string()));
-                assert_eq!(report.counters().get(&k), Some(&1));
+                assert_eq!(report.counters().get(&k).map(|c| c.load(Ordering::Relaxed)),
+                           Some(1));
             }
             {
                 let k = report
@@ -421,7 +422,7 @@ mod tests {
                     .expect("expected counter");
                 assert_eq!(k.labels.get("joy"), Some(&"painting".to_string()));
                 assert_eq!(report.counters().get(&k).map(|c| c.load(Ordering::Relaxed)),
-                           Some(&3));
+                           Some(3));
             }
             assert_eq!(report.gauges().keys().find(|k| k.name() == "paint_level"),
                        None);
