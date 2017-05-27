@@ -335,7 +335,7 @@ mod tests {
     }
 
     #[bench]
-    fn bench_counter_insert_x1000(b: &mut Bencher) {
+    fn bench_counter_update_x1000(b: &mut Bencher) {
         let mut counters: Vec<Counter> = mk_scopes(1000)
             .iter()
             .map(|s| s.counter("counter".into()))
@@ -346,7 +346,7 @@ mod tests {
     }
 
     #[bench]
-    fn bench_gauge_insert_x1000(b: &mut Bencher) {
+    fn bench_gauge_update_x1000(b: &mut Bencher) {
         let mut gauges: Vec<Gauge> = mk_scopes(1000)
             .iter()
             .map(|s| s.gauge("gauge".into()))
