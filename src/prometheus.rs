@@ -9,8 +9,6 @@ const BUF_SIZE: usize = 8 * 1024;
 pub fn format<R: Report>(report: &R) -> String {
     let mut out = String::with_capacity(BUF_SIZE);
 
-    out.push_str(&format!("metrics_count {}\n", report.len()));
-
     for (k, v) in report.counters() {
         let labels = k.labels();
         if labels.is_empty() {

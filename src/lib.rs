@@ -16,11 +16,15 @@
 
 // TODO use atomics when we have them.
 
+// For benchmarks.
+#![feature(test)]
+
 extern crate hdrsample;
 #[macro_use]
 extern crate log;
-extern crate twox_hash;
 extern crate ordermap;
+extern crate test;
+extern crate twox_hash;
 
 use hdrsample::Histogram;
 use ordermap::OrderMap;
@@ -264,7 +268,122 @@ impl Stat {
 
 #[cfg(test)]
 mod tests {
-    use super::Report;
+    use super::*;
+    use test::Bencher;
+
+    #[bench]
+    fn bench_counter_create(b: &mut Bencher) {
+        let (metrics, _) = super::new();
+        b.iter(move || { let _ = metrics.counter("counter".into()); });
+    }
+
+    #[bench]
+    fn bench_gauge_create(b: &mut Bencher) {
+        let (metrics, _) = super::new();
+        b.iter(move || { let _ = metrics.gauge("gauge".into()); });
+    }
+
+    #[bench]
+    fn bench_stat_create(b: &mut Bencher) {
+        let (metrics, _) = super::new();
+        b.iter(move || { let _ = metrics.stat("stat".into()); });
+    }
+
+    #[bench]
+    fn bench_counter_create_x1000(b: &mut Bencher) {
+        let scopes = mk_scopes(1000);
+        b.iter(move || for scope in &scopes {
+                   scope.counter("counter".into());
+               });
+    }
+
+    #[bench]
+    fn bench_gauge_create_x1000(b: &mut Bencher) {
+        let scopes = mk_scopes(1000);
+        b.iter(move || for scope in &scopes {
+                   scope.gauge("gauge".into());
+               });
+    }
+
+    #[bench]
+    fn bench_stat_create_x1000(b: &mut Bencher) {
+        let scopes = mk_scopes(1000);
+        b.iter(move || for scope in &scopes {
+                   scope.stat("stat".into());
+               });
+    }
+
+    #[bench]
+    fn bench_counter_update(b: &mut Bencher) {
+        let (metrics, _) = super::new();
+        let mut c = metrics.counter("counter".into());
+        b.iter(move || c.incr(1));
+    }
+
+    #[bench]
+    fn bench_gauge_update(b: &mut Bencher) {
+        let (metrics, _) = super::new();
+        let mut g = metrics.gauge("gauge".into());
+        b.iter(move || g.set(1));
+    }
+
+    #[bench]
+    fn bench_stat_update(b: &mut Bencher) {
+        let (metrics, _) = super::new();
+        let mut s = metrics.stat("stat".into());
+        b.iter(move || s.add(1));
+    }
+
+    #[bench]
+    fn bench_counter_insert_x1000(b: &mut Bencher) {
+        let mut counters: Vec<Counter> = mk_scopes(1000)
+            .iter()
+            .map(|s| s.counter("counter".into()))
+            .collect();
+        b.iter(move || for mut c in &mut counters {
+                   c.incr(1)
+               });
+    }
+
+    #[bench]
+    fn bench_gauge_insert_x1000(b: &mut Bencher) {
+        let mut gauges: Vec<Gauge> = mk_scopes(1000)
+            .iter()
+            .map(|s| s.gauge("gauge".into()))
+            .collect();
+        b.iter(move || for mut g in &mut gauges {
+                   g.set(1)
+               });
+    }
+
+    #[bench]
+    fn bench_stat_update_x1000(b: &mut Bencher) {
+        let mut stats: Vec<Stat> = mk_scopes(1000)
+            .iter()
+            .map(|s| s.stat("stat".into()))
+            .collect();
+        b.iter(move || for mut s in &mut stats {
+                   s.add(1)
+               });
+    }
+
+    #[bench]
+    fn bench_stat_add_x1000(b: &mut Bencher) {
+        let mut s = {
+            let (metrics, _) = super::new();
+            metrics.stat("stat".into())
+        };
+        b.iter(move || for i in 0..1000 {
+                   s.add(i)
+               });
+    }
+
+    fn mk_scopes(n: usize) -> Vec<Scope> {
+        let (metrics, _) = super::new();
+        (0..n)
+            .map(|i| metrics.clone().labeled("iter".into(), format!("{}", i)))
+            .collect()
+    }
 
     #[test]
     fn test_report_peek() {
