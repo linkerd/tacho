@@ -49,7 +49,7 @@ impl Reporter {
                 .expect("failed to obtain write lock for counters");
             let mut snap = CounterMap::default();
             for (k, v) in orig.iter() {
-                snap.insert(k.clone(), *v);
+                snap.insert(k.clone(), v.clone());
             }
             snap
         };

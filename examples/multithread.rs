@@ -30,9 +30,9 @@ fn main() {
     };
     {
         let metrics = metrics.clone().labeled("role".into(), "worker".into());
-        let mut total_time_ms = metrics.gauge("total_time_ms".into());
-        let mut loop_counter = metrics.counter("loop_iters_count".into());
-        let mut loop_gauge = metrics.gauge("loop_iters_curr".into());
+        let total_time_ms = metrics.gauge("total_time_ms".into());
+        let loop_counter = metrics.counter("loop_iters_count".into());
+        let loop_gauge = metrics.gauge("loop_iters_curr".into());
         let mut loop_time_us = metrics.stat("loop_time_us".into());
 
         let spawn_start = Timing::start();
@@ -50,7 +50,7 @@ fn main() {
 
     let heartbeat = {
         let metrics = metrics.labeled("role".into(), "heartbeat".into());
-        let mut heartbeats = metrics.gauge("heartbeats".into());
+        let heartbeats = metrics.gauge("heartbeats".into());
         Timer::default()
             .interval(Duration::from_secs(1))
             .fold(0, move |i, _| {

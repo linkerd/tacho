@@ -16,6 +16,8 @@
 
 // TODO use atomics when we have them.
 
+#![feature(integer_atomics)]
+
 extern crate hdrsample;
 #[macro_use]
 extern crate log;
@@ -26,6 +28,7 @@ use hdrsample::Histogram;
 use ordermap::OrderMap;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicU64, Ordering};
 use twox_hash::RandomXxHashBuilder;
 
 pub mod prometheus;
@@ -36,8 +39,8 @@ pub use report::{Reporter, Report, ReportTake, ReportPeek};
 pub use timing::Timing;
 
 type Labels = BTreeMap<String, String>;
-type CounterMap = OrderMap<Key, u64, RandomXxHashBuilder>;
-type GaugeMap = OrderMap<Key, u64, RandomXxHashBuilder>;
+type CounterMap = OrderMap<Key, Arc<AtomicU64>, RandomXxHashBuilder>;
+type GaugeMap = OrderMap<Key, Arc<AtomicU64>, RandomXxHashBuilder>;
 type StatMap = OrderMap<Key, Histogram<u64>, RandomXxHashBuilder>;
 
 /// Creates a metrics registry.
@@ -122,18 +125,26 @@ impl Scope {
 
     /// Creates a Counter with the given name.
     pub fn counter(&self, name: String) -> Counter {
-        Counter {
-            key: Key::new(name, self.labels.clone()),
-            counters: self.counters.clone(),
-        }
+        let key = Key::new(name, self.labels.clone());
+        let mut counters = self.counters
+            .lock()
+            .expect("failed to obtain lock on counters");
+        let counter = counters
+            .entry(key.clone())
+            .or_insert_with(Default::default)
+            .clone();
+        Counter { key, counter }
     }
 
     /// Creates a Gauge with the given name.
     pub fn gauge(&self, name: String) -> Gauge {
-        Gauge {
-            key: Key::new(name, self.labels.clone()),
-            gauges: self.gauges.clone(),
-        }
+        let key = Key::new(name, self.labels.clone());
+        let mut gauges = self.gauges.lock().expect("failed to obtain lock on gauges");
+        let gauge = gauges
+            .entry(key.clone())
+            .or_insert_with(Default::default)
+            .clone();
+        Gauge { key, gauge }
     }
 
     /// Creates a Stat with the given name.
@@ -161,7 +172,7 @@ impl Scope {
 #[derive(Clone)]
 pub struct Counter {
     key: Key,
-    counters: Arc<Mutex<CounterMap>>,
+    counter: Arc<AtomicU64>,
 }
 impl Counter {
     pub fn name(&self) -> &str {
@@ -171,15 +182,8 @@ impl Counter {
         &self.key.labels
     }
 
-    pub fn incr(&mut self, v: u64) {
-        let mut counters = self.counters
-            .lock()
-            .expect("failed to obtain write lock for counter");
-        if let Some(mut curr) = counters.get_mut(&self.key) {
-            *curr += v;
-            return;
-        }
-        counters.insert(self.key.clone(), v);
+    pub fn incr(&self, v: u64) {
+        self.counter.fetch_add(v, Ordering::Relaxed);
     }
 }
 
@@ -187,7 +191,7 @@ impl Counter {
 #[derive(Clone)]
 pub struct Gauge {
     key: Key,
-    gauges: Arc<Mutex<GaugeMap>>,
+    gauge: Arc<AtomicU64>,
 }
 impl Gauge {
     pub fn name(&self) -> &str {
@@ -197,15 +201,8 @@ impl Gauge {
         &self.key.labels
     }
 
-    pub fn set(&mut self, v: u64) {
-        let mut gauges = self.gauges
-            .lock()
-            .expect("failed to obtain write lock for gauge");
-        if let Some(mut curr) = gauges.get_mut(&self.key) {
-            *curr = v;
-            return;
-        }
-        gauges.insert(self.key.clone(), v);
+    pub fn set(&self, v: u64) {
+        self.gauge.store(v, Ordering::Relaxed);
     }
 }
 
@@ -265,6 +262,7 @@ impl Stat {
 #[cfg(test)]
 mod tests {
     use super::Report;
+    use std::sync::atomic::Ordering;
 
     #[test]
     fn test_report_peek() {
@@ -283,7 +281,8 @@ mod tests {
                     .find(|k| k.name() == "happy_accidents")
                     .expect("expected counter");
                 assert_eq!(k.labels.get("joy"), Some(&"painting".to_string()));
-                assert_eq!(report.counters().get(&k), Some(&1));
+                assert_eq!(report.counters().get(&k).map(|c| c.load(Ordering::Relaxed)),
+                           Some(1));
             }
             {
                 let k = report
@@ -292,7 +291,8 @@ mod tests {
                     .find(|k| k.name() == "paint_level")
                     .expect("expected gauge");
                 assert_eq!(k.labels.get("joy"), Some(&"painting".to_string()));
-                assert_eq!(report.gauges().get(&k), Some(&2));
+                assert_eq!(report.gauges().get(&k).map(|c| c.load(Ordering::Relaxed)),
+                           Some(2));
             }
             assert_eq!(report.gauges().keys().find(|k| k.name() == "brush_width"),
                        None);
@@ -321,7 +321,8 @@ mod tests {
                     .find(|k| k.name() == "happy_accidents")
                     .expect("expected counter");
                 assert_eq!(k.labels.get("joy"), Some(&"painting".to_string()));
-                assert_eq!(report.counters().get(&k), Some(&3));
+                assert_eq!(report.counters().get(&k).map(|g| g.load(Ordering::Relaxed)),
+                           Some(3));
             }
             {
                 let k = report
@@ -330,7 +331,8 @@ mod tests {
                     .find(|k| k.name() == "paint_level")
                     .expect("expected gauge");
                 assert_eq!(k.labels.get("joy"), Some(&"painting".to_string()));
-                assert_eq!(report.gauges().get(&k), Some(&2));
+                assert_eq!(report.gauges().get(&k).map(|g| g.load(Ordering::Relaxed)),
+                           Some(2));
             }
             {
                 let k = report
@@ -339,7 +341,8 @@ mod tests {
                     .find(|k| k.name() == "brush_width")
                     .expect("expected gauge");
                 assert_eq!(k.labels.get("joy"), Some(&"painting".to_string()));
-                assert_eq!(report.gauges().get(&k), Some(&5));
+                assert_eq!(report.gauges().get(&k).map(|g| g.load(Ordering::Relaxed)),
+                           Some(5));
             }
             {
                 let k = report
@@ -379,7 +382,8 @@ mod tests {
                     .find(|k| k.name() == "happy_accidents")
                     .expect("expected counter");
                 assert_eq!(k.labels.get("joy"), Some(&"painting".to_string()));
-                assert_eq!(report.counters().get(&k), Some(&1));
+                assert_eq!(report.counters().get(&k).map(|c| c.load(Ordering::Relaxed)),
+                           Some(1));
             }
             {
                 let k = report
@@ -388,7 +392,8 @@ mod tests {
                     .find(|k| k.name() == "paint_level")
                     .expect("expected gauge");
                 assert_eq!(k.labels.get("joy"), Some(&"painting".to_string()));
-                assert_eq!(report.gauges().get(&k), Some(&2));
+                assert_eq!(report.gauges().get(&k).map(|g| g.load(Ordering::Relaxed)),
+                           Some(2));
             }
             assert_eq!(report.gauges().keys().find(|k| k.name() == "brush_width"),
                        None);
@@ -416,7 +421,8 @@ mod tests {
                     .find(|k| k.name() == "happy_accidents")
                     .expect("expected counter");
                 assert_eq!(k.labels.get("joy"), Some(&"painting".to_string()));
-                assert_eq!(report.counters().get(&k), Some(&3));
+                assert_eq!(report.counters().get(&k).map(|c| c.load(Ordering::Relaxed)),
+                           Some(3));
             }
             assert_eq!(report.gauges().keys().find(|k| k.name() == "paint_level"),
                        None);
@@ -427,7 +433,8 @@ mod tests {
                     .find(|k| k.name() == "brush_width")
                     .expect("expected gauge");
                 assert_eq!(k.labels.get("joy"), Some(&"painting".to_string()));
-                assert_eq!(report.gauges().get(&k), Some(&5));
+                assert_eq!(report.gauges().get(&k).map(|g| g.load(Ordering::Relaxed)),
+                           Some(5));
             }
             assert_eq!(report.stats().keys().find(|k| k.name() == "stroke_len"),
                        None);
