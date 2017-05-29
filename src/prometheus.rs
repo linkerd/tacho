@@ -9,8 +9,6 @@ const BUF_SIZE: usize = 8 * 1024;
 pub fn format<R: Report>(report: &R) -> String {
     let mut out = String::with_capacity(BUF_SIZE);
 
-    out.push_str(&format!("metrics_count {}\n", report.len()));
-
     for (k, v) in report.counters() {
         let labels = k.labels();
         if labels.is_empty() {
@@ -41,7 +39,6 @@ pub fn format<R: Report>(report: &R) -> String {
         };
         let labels = &labels;
         out.push_str(&format_stat("count", name, labels, h.count()));
-        out.push_str(&format_stat("mean", name, labels, h.mean()));
         out.push_str(&format_stat("min", name, labels, h.min()));
         out.push_str(&format_stat("max", name, labels, h.max()));
         out.push_str(&format_stat("stddev", name, labels, h.stdev()));
