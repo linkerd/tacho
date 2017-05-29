@@ -45,12 +45,12 @@ pub fn format<R: Report>(report: &R) -> String {
         out.push_str(&format_stat("min", name, labels, h.min()));
         out.push_str(&format_stat("max", name, labels, h.max()));
         out.push_str(&format_stat("stddev", name, labels, h.stdev()));
-        out.push_str(&format_stat("p50", name, labels, h.value_at_percentile(0.5)));
-        out.push_str(&format_stat("p90", name, labels, h.value_at_percentile(0.9)));
-        out.push_str(&format_stat("p95", name, labels, h.value_at_percentile(0.95)));
-        out.push_str(&format_stat("p99", name, labels, h.value_at_percentile(0.99)));
-        out.push_str(&format_stat("p999", name, labels, h.value_at_percentile(0.999)));
-        out.push_str(&format_stat("p9999", name, labels, h.value_at_percentile(0.9999)));
+        out.push_str(&format_stat("p50", name, labels, h.value_at_percentile(50.0)));
+        out.push_str(&format_stat("p90", name, labels, h.value_at_percentile(90.0)));
+        out.push_str(&format_stat("p95", name, labels, h.value_at_percentile(95.0)));
+        out.push_str(&format_stat("p99", name, labels, h.value_at_percentile(99.0)));
+        out.push_str(&format_stat("p999", name, labels, h.value_at_percentile(99.9)));
+        out.push_str(&format_stat("p9999", name, labels, h.value_at_percentile(99.99)));
     }
 
     out
