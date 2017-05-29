@@ -9,10 +9,6 @@
 //!
 //! ## Performance
 //!
-//! We found that the default (cryptographic) `Hash` algorithm adds a significant
-//! performance penalty, so the (non-cryptographic) `RandomXxHashBuilder` algorithm is
-//! used..
-//!
 //! Labels are stored in a `BTreeMap` because they are used as hash keys and, therefore,
 //! need to implement `Hash`.
 
@@ -57,9 +53,7 @@ pub fn new() -> (Scope, Reporter) {
         registry: registry.clone(),
     };
 
-    let reporter = report::new(registry);
-
-    (scope, reporter)
+    (scope, report::new(registry))
 }
 
 /// Describes a metric.
@@ -245,74 +239,104 @@ mod tests {
     use super::*;
     use test::Bencher;
 
+    static DEFAULT_METRIC_NAME: &'static str = "a_sufficiently_long_name";
+
+    #[bench]
+    fn bench_scope_clone(b: &mut Bencher) {
+        let (metrics, _) = super::new();
+        b.iter(move || { let _ = metrics.clone(); });
+    }
+
+    #[bench]
+    fn bench_scope_label(b: &mut Bencher) {
+        let (metrics, _) = super::new();
+        b.iter(move || { let _ = metrics.clone().labeled("foo", "bar".into()); });
+    }
+
+    #[bench]
+    fn bench_scope_clone_x1000(b: &mut Bencher) {
+        let scopes = mk_scopes(1000, "bench_scope_clone_x1000");
+        b.iter(move || for scope in &scopes {
+                   let _ = scope.clone();
+               });
+    }
+
+    #[bench]
+    fn bench_scope_label_x1000(b: &mut Bencher) {
+        let scopes = mk_scopes(1000, "bench_scope_label_x1000");
+        b.iter(move || for scope in &scopes {
+                   let _ = scope.clone().labeled("foo", "bar".into());
+               });
+    }
+
     #[bench]
     fn bench_counter_create(b: &mut Bencher) {
         let (metrics, _) = super::new();
-        b.iter(move || { let _ = metrics.counter("counter"); });
+        b.iter(move || { let _ = metrics.counter(DEFAULT_METRIC_NAME); });
     }
 
     #[bench]
     fn bench_gauge_create(b: &mut Bencher) {
         let (metrics, _) = super::new();
-        b.iter(move || { let _ = metrics.gauge("gauge"); });
+        b.iter(move || { let _ = metrics.gauge(DEFAULT_METRIC_NAME); });
     }
 
     #[bench]
     fn bench_stat_create(b: &mut Bencher) {
         let (metrics, _) = super::new();
-        b.iter(move || { let _ = metrics.stat("stat"); });
+        b.iter(move || { let _ = metrics.stat(DEFAULT_METRIC_NAME); });
     }
 
     #[bench]
     fn bench_counter_create_x1000(b: &mut Bencher) {
-        let scopes = mk_scopes(1000);
+        let scopes = mk_scopes(1000, "bench_counter_create_x1000");
         b.iter(move || for scope in &scopes {
-                   scope.counter("counter");
+                   scope.counter(DEFAULT_METRIC_NAME);
                });
     }
 
     #[bench]
     fn bench_gauge_create_x1000(b: &mut Bencher) {
-        let scopes = mk_scopes(1000);
+        let scopes = mk_scopes(1000, "bench_gauge_create_x1000");
         b.iter(move || for scope in &scopes {
-                   scope.gauge("gauge");
+                   scope.gauge(DEFAULT_METRIC_NAME);
                });
     }
 
     #[bench]
     fn bench_stat_create_x1000(b: &mut Bencher) {
-        let scopes = mk_scopes(1000);
+        let scopes = mk_scopes(1000, "bench_stat_create_x1000");
         b.iter(move || for scope in &scopes {
-                   scope.stat("stat");
+                   scope.stat(DEFAULT_METRIC_NAME);
                });
     }
 
     #[bench]
     fn bench_counter_update(b: &mut Bencher) {
         let (metrics, _) = super::new();
-        let c = metrics.counter("counter");
+        let c = metrics.counter(DEFAULT_METRIC_NAME);
         b.iter(move || c.incr(1));
     }
 
     #[bench]
     fn bench_gauge_update(b: &mut Bencher) {
         let (metrics, _) = super::new();
-        let g = metrics.gauge("gauge");
+        let g = metrics.gauge(DEFAULT_METRIC_NAME);
         b.iter(move || g.set(1));
     }
 
     #[bench]
     fn bench_stat_update(b: &mut Bencher) {
         let (metrics, _) = super::new();
-        let mut s = metrics.stat("stat");
+        let mut s = metrics.stat(DEFAULT_METRIC_NAME);
         b.iter(move || s.add(1));
     }
 
     #[bench]
     fn bench_counter_update_x1000(b: &mut Bencher) {
-        let counters: Vec<Counter> = mk_scopes(1000)
+        let counters: Vec<Counter> = mk_scopes(1000, "bench_counter_update_x1000")
             .iter()
-            .map(|s| s.counter("counter"))
+            .map(|s| s.counter(DEFAULT_METRIC_NAME))
             .collect();
         b.iter(move || for c in &counters {
                    c.incr(1)
@@ -321,7 +345,10 @@ mod tests {
 
     #[bench]
     fn bench_gauge_update_x1000(b: &mut Bencher) {
-        let gauges: Vec<Gauge> = mk_scopes(1000).iter().map(|s| s.gauge("gauge")).collect();
+        let gauges: Vec<Gauge> = mk_scopes(1000, "bench_gauge_update_x1000")
+            .iter()
+            .map(|s| s.gauge(DEFAULT_METRIC_NAME))
+            .collect();
         b.iter(move || for g in &gauges {
                    g.set(1)
                });
@@ -329,7 +356,10 @@ mod tests {
 
     #[bench]
     fn bench_stat_update_x1000(b: &mut Bencher) {
-        let mut stats: Vec<Stat> = mk_scopes(1000).iter().map(|s| s.stat("stat")).collect();
+        let mut stats: Vec<Stat> = mk_scopes(1000, "bench_stat_update_x1000")
+            .iter()
+            .map(|s| s.stat(DEFAULT_METRIC_NAME))
+            .collect();
         b.iter(move || for mut s in &mut stats {
                    s.add(1)
                });
@@ -339,21 +369,22 @@ mod tests {
     fn bench_stat_add_x1000(b: &mut Bencher) {
         let mut s = {
             let (metrics, _) = super::new();
-            metrics.stat("stat")
+            metrics.stat(DEFAULT_METRIC_NAME)
         };
         b.iter(move || for i in 0..1000 {
                    s.add(i)
                });
     }
 
-    fn mk_scopes(n: usize) -> Vec<Scope> {
+    fn mk_scopes(n: usize, name: &str) -> Vec<Scope> {
         let (metrics, _) = super::new();
+        let metrics = metrics
+            .labeled("test_name", name.into())
+            .labeled("total_iterations", format!("{}", n));
         (0..n)
-            .map(|i| metrics.clone().labeled("iter", format!("{}", i)))
+            .map(|i| metrics.clone().labeled("iteration", format!("{}", i)))
             .collect()
     }
-
-
 
     #[test]
     fn test_report_peek() {
