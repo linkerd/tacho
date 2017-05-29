@@ -1,4 +1,4 @@
-//! A performance test for gauges being accessed across threads.
+//! A performance test for stats being accessed across threads.
 
 #[macro_use]
 extern crate log;
@@ -10,7 +10,6 @@ extern crate tokio_timer;
 
 use futures::{BoxFuture, Future, Stream};
 use futures::sync::oneshot;
-use std::cmp;
 use std::thread;
 use std::time::Duration;
 use tacho::Timing;
@@ -35,26 +34,31 @@ fn main() {
 
     let metrics = metrics
         .clone()
-        .labeled("test".into(), "multithread_gauge".into());
+        .labeled("test".into(), "multithread_stat".into());
     let loop_counter = metrics.counter("loop_counter".into());
-    let max_loop_time_us = metrics.gauge("loop_time_max_us".into());
-    for work_done_tx in vec![work_done_tx0, work_done_tx1] {
+    let loop_iter_us = metrics.stat("loop_iter_us".into());
+    for (i, work_done_tx) in vec![(0, work_done_tx0), (1, work_done_tx1)] {
         let mut loop_counter = loop_counter.clone();
-        let mut max_loop_time_us = max_loop_time_us.clone();
+        let mut loop_iter_us = loop_iter_us.clone();
+        let mut current_iter = metrics
+            .clone()
+            .labeled("thread".into(), format!("{}", i))
+            .gauge("current_iter".into());
         thread::spawn(move || {
-            let mut max = 0;
-            let mut prior = 0;
-            for _ in 0..2_000_000 {
+            let mut prior = None;
+            for i in 0..10_000_000 {
+                current_iter.set(i);
                 loop_counter.incr(1);
-                max = cmp::max(max, prior);
 
                 let t0 = Timing::start();
-                max_loop_time_us.set(max);
-                prior = t0.elapsed_us();
+                if let Some(p) = prior.take() {
+                    loop_iter_us.add(p);
+                }
+                prior = Some(t0.elapsed_us());
             }
-
-            max = cmp::max(max, prior);
-            max_loop_time_us.set(max);
+            if let Some(p) = prior.take() {
+                loop_iter_us.add(p);
+            }
 
             work_done_tx.send(()).expect("could not send");
         });
