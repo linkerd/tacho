@@ -15,6 +15,9 @@
 // For benchmarks.
 #![feature(test)]
 
+// For benchmarks.
+#![feature(test)]
+
 extern crate hdrsample;
 #[macro_use]
 extern crate log;

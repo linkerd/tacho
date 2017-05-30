@@ -32,14 +32,12 @@ fn main() {
         reporter(interval, work_done_rx, report)
     };
 
-    let metrics = metrics
-        .clone()
-        .labeled("test".into(), "multithread_stat".into());
-    let loop_iter_us = metrics.stat("loop_iter_us".into());
+    let metrics = metrics.clone().labeled("test", "multithread_stat".into());
+    let loop_iter_us = metrics.stat("loop_iter_us");
     for (i, work_done_tx) in vec![(0, work_done_tx0), (1, work_done_tx1)] {
-        let metrics = metrics.clone().labeled("thread".into(), format!("{}", i));
-        let loop_counter = metrics.counter("loop_counter".into());
-        let current_iter = metrics.gauge("current_iter".into());
+        let metrics = metrics.clone().labeled("thread", format!("{}", i));
+        let loop_counter = metrics.counter("loop_counter");
+        let current_iter = metrics.gauge("current_iter");
         let loop_iter_us = loop_iter_us.clone();
         thread::spawn(move || {
             let mut prior = None;
