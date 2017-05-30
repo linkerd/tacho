@@ -218,11 +218,11 @@ pub struct Stat {
 const HISTOGRAM_PRECISION: u32 = 4;
 
 impl Stat {
-    pub fn add(&mut self, v: u64) {
+    pub fn add(&self, v: u64) {
         self.add_values(&[v]);
     }
 
-    pub fn add_values(&mut self, vs: &[u64]) {
+    pub fn add_values(&self, vs: &[u64]) {
         if let Some(h) = self.histo.upgrade() {
             let mut histo = h.lock().expect("failed to obtain lock for stat");
             for v in vs {
@@ -328,7 +328,7 @@ mod tests {
     #[bench]
     fn bench_stat_update(b: &mut Bencher) {
         let (metrics, _) = super::new();
-        let mut s = metrics.stat(DEFAULT_METRIC_NAME);
+        let s = metrics.stat(DEFAULT_METRIC_NAME);
         b.iter(move || s.add(1));
     }
 
@@ -360,14 +360,14 @@ mod tests {
             .iter()
             .map(|s| s.stat(DEFAULT_METRIC_NAME))
             .collect();
-        b.iter(move || for mut s in &mut stats {
+        b.iter(move || for s in &stats {
                    s.add(1)
                });
     }
 
     #[bench]
     fn bench_stat_add_x1000(b: &mut Bencher) {
-        let mut s = {
+        let s = {
             let (metrics, _) = super::new();
             metrics.stat(DEFAULT_METRIC_NAME)
         };
@@ -393,7 +393,7 @@ mod tests {
 
         let happy_accidents = metrics.counter("happy_accidents");
         let paint_level = metrics.gauge("paint_level");
-        let mut stroke_len = metrics.stat("stroke_len");
+        let stroke_len = metrics.stat("stroke_len");
 
         happy_accidents.incr(1);
         paint_level.set(2);
@@ -435,7 +435,7 @@ mod tests {
 
         drop(paint_level);
         let brush_width = metrics.gauge("brush_width");
-        let mut tree_len = metrics.stat("tree_len");
+        let tree_len = metrics.stat("tree_len");
 
         happy_accidents.incr(2);
         brush_width.set(5);
@@ -499,7 +499,7 @@ mod tests {
 
         let happy_accidents = metrics.counter("happy_accidents");
         let paint_level = metrics.gauge("paint_level");
-        let mut stroke_len = metrics.stat("stroke_len");
+        let stroke_len = metrics.stat("stroke_len");
         happy_accidents.incr(1);
         paint_level.set(2);
         stroke_len.add_values(&[1, 2, 3]);
@@ -580,7 +580,7 @@ mod tests {
         }
 
         let brush_width = metrics.gauge("brush_width");
-        let mut tree_len = metrics.stat("tree_len");
+        let tree_len = metrics.stat("tree_len");
         happy_accidents.incr(2);
         brush_width.set(5);
         tree_len.add_values(&[3, 4, 5]);
