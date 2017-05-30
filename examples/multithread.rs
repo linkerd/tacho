@@ -35,28 +35,24 @@ fn main() {
     let metrics = metrics
         .clone()
         .labeled("test".into(), "multithread_stat".into());
-    let loop_counter = metrics.counter("loop_counter".into());
     let loop_iter_us = metrics.stat("loop_iter_us".into());
     for (i, work_done_tx) in vec![(0, work_done_tx0), (1, work_done_tx1)] {
-        let mut loop_counter = loop_counter.clone();
+        let metrics = metrics.clone().labeled("thread".into(), format!("{}", i));
+        let mut loop_counter = metrics.counter("loop_counter".into());
+        let mut current_iter = metrics.gauge("current_iter".into());
         let mut loop_iter_us = loop_iter_us.clone();
-        let mut current_iter = metrics
-            .clone()
-            .labeled("thread".into(), format!("{}", i))
-            .gauge("current_iter".into());
         thread::spawn(move || {
             let mut prior = None;
             for i in 0..10_000_000 {
+                let t0 = Timing::start();
                 current_iter.set(i);
                 loop_counter.incr(1);
-
-                let t0 = Timing::start();
-                if let Some(p) = prior.take() {
+                if let Some(p) = prior {
                     loop_iter_us.add(p);
                 }
                 prior = Some(t0.elapsed_us());
             }
-            if let Some(p) = prior.take() {
+            if let Some(p) = prior {
                 loop_iter_us.add(p);
             }
 
