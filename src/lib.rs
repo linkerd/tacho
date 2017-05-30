@@ -201,6 +201,16 @@ impl Counter {
 #[derive(Clone)]
 pub struct Gauge(Weak<AtomicUsize>);
 impl Gauge {
+    pub fn incr(&self, v: usize) {
+        if let Some(g) = self.0.upgrade() {
+            g.fetch_add(v, Ordering::AcqRel);
+        }
+    }
+    pub fn decr(&self, v: usize) {
+        if let Some(g) = self.0.upgrade() {
+            g.fetch_sub(v, Ordering::AcqRel);
+        }
+    }
     pub fn set(&self, v: usize) {
         if let Some(g) = self.0.upgrade() {
             g.store(v, Ordering::Release);
@@ -356,7 +366,7 @@ mod tests {
 
     #[bench]
     fn bench_stat_update_x1000(b: &mut Bencher) {
-        let mut stats: Vec<Stat> = mk_scopes(1000, "bench_stat_update_x1000")
+        let stats: Vec<Stat> = mk_scopes(1000, "bench_stat_update_x1000")
             .iter()
             .map(|s| s.stat(DEFAULT_METRIC_NAME))
             .collect();
@@ -587,13 +597,13 @@ mod tests {
         {
             let report = reporter.take();
             {
-                let counters = report.counters();
-                let k = counters
+                let k = report
+                    .counters()
                     .keys()
                     .find(|k| k.name() == "happy_accidents")
                     .expect("expected counter: happy_accidents");
                 assert_eq!(k.labels.get("joy"), Some(&"painting".to_string()));
-                assert_eq!(counters.get(&k), Some(&3));
+                assert_eq!(report.counters().get(&k), Some(&3));
             }
             assert_eq!(report.gauges().keys().find(|k| k.name() == "paint_level"),
                        None);
