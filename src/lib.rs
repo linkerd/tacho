@@ -15,6 +15,9 @@
 // For benchmarks.
 #![feature(test)]
 
+// For benchmarks.
+#![feature(test)]
+
 extern crate hdrsample;
 #[macro_use]
 extern crate log;
@@ -356,7 +359,7 @@ mod tests {
 
     #[bench]
     fn bench_stat_update_x1000(b: &mut Bencher) {
-        let mut stats: Vec<Stat> = mk_scopes(1000, "bench_stat_update_x1000")
+        let stats: Vec<Stat> = mk_scopes(1000, "bench_stat_update_x1000")
             .iter()
             .map(|s| s.stat(DEFAULT_METRIC_NAME))
             .collect();
