@@ -123,7 +123,7 @@ impl Scope {
             return Counter(Arc::downgrade(c));
         }
 
-        let c = Arc::new(AtomicUsize::default());
+        let c = Arc::new(AtomicUsize::new(0));
         let counter = Counter(Arc::downgrade(&c));
         reg.counters.insert(key, c);
         counter
@@ -140,7 +140,7 @@ impl Scope {
             return Gauge(Arc::downgrade(g));
         }
 
-        let g = Arc::new(AtomicUsize::default());
+        let g = Arc::new(AtomicUsize::new(0));
         let gauge = Gauge(Arc::downgrade(&g));
         reg.gauges.insert(key, g);
         gauge
@@ -170,22 +170,16 @@ impl Scope {
             return Stat { histo, bounds };
         }
 
-        let histo = match bounds {
-            None => {
-                Histogram::<usize>::new(HISTOGRAM_PRECISION).expect("failed to build Histogram")
-            }
-            Some((low, high)) => {
-                Histogram::<usize>::new_with_bounds(low, high, HISTOGRAM_PRECISION)
-                    .expect("failed to build Histogram")
-            }
+        let h = {
+            let h = match bounds {
+                None => Histogram::<usize>::new(HISTOGRAM_PRECISION),
+                Some((l, h)) => Histogram::<usize>::new_with_bounds(l, h, HISTOGRAM_PRECISION),
+            };
+            Arc::new(Mutex::new(h.expect("failed to build Histogram")))
         };
-        let s = Arc::new(Mutex::new(histo));
-        let stat = Stat {
-            histo: Arc::downgrade(&s),
-            bounds,
-        };
-        reg.stats.insert(key, s);
-        stat
+        let histo = Arc::downgrade(&h);
+        reg.stats.insert(key, h);
+        Stat { histo, bounds }
     }
 }
 
