@@ -36,7 +36,7 @@ fn do_work(metrics: tacho::Scope) -> future::BoxFuture<(), ()> {
     let timer = Timer::default();
     future::loop_fn(100, move |n| {
         // Clones are shallow, minimizing allocation.
-        let mut iter_time_us = iter_time_us.clone();
+        let iter_time_us = iter_time_us.clone();
 
         let start = Timing::start();
         timer

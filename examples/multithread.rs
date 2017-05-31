@@ -38,9 +38,9 @@ fn main() {
     let loop_iter_us = metrics.stat("loop_iter_us".into());
     for (i, work_done_tx) in vec![(0, work_done_tx0), (1, work_done_tx1)] {
         let metrics = metrics.clone().labeled("thread".into(), format!("{}", i));
-        let mut loop_counter = metrics.counter("loop_counter".into());
-        let mut current_iter = metrics.gauge("current_iter".into());
-        let mut loop_iter_us = loop_iter_us.clone();
+        let loop_counter = metrics.counter("loop_counter".into());
+        let current_iter = metrics.gauge("current_iter".into());
+        let loop_iter_us = loop_iter_us.clone();
         thread::spawn(move || {
             let mut prior = None;
             for i in 0..10_000_000 {
@@ -82,6 +82,6 @@ fn reporter<D>(interval: Duration, done: D, reporter: tacho::Reporter) -> BoxFut
     periodic.select(done).map(|_| {}).map_err(|_| {}).boxed()
 }
 
-fn print_report<R: tacho::Report>(report: &R) {
+fn print_report(report: &tacho::Report) {
     info!("\n{}", tacho::prometheus::format(report));
 }
