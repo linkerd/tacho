@@ -40,7 +40,7 @@ pub use timing::Timing;
 type Labels = BTreeMap<&'static str, String>;
 type CounterMap = OrderMap<Key, Arc<AtomicUsize>>;
 type GaugeMap = OrderMap<Key, Arc<AtomicUsize>>;
-type StatMap = OrderMap<Key, Arc<Mutex<Histogram<usize>>>>;
+type StatMap = OrderMap<Key, Arc<Mutex<HistogramWithSum>>>;
 
 /// Creates a metrics registry.
 ///
@@ -170,13 +170,7 @@ impl Scope {
             return Stat { histo, bounds };
         }
 
-        let h = {
-            let h = match bounds {
-                None => Histogram::<usize>::new(HISTOGRAM_PRECISION),
-                Some((l, h)) => Histogram::<usize>::new_with_bounds(l, h, HISTOGRAM_PRECISION),
-            };
-            Arc::new(Mutex::new(h.expect("failed to build Histogram")))
-        };
+        let h = Arc::new(Mutex::new(HistogramWithSum::new(bounds)));
         let histo = Arc::downgrade(&h);
         reg.stats.insert(key, h);
         Stat { histo, bounds }
@@ -215,14 +209,63 @@ impl Gauge {
     }
 }
 
+const HISTOGRAM_PRECISION: u32 = 4;
+
+#[derive(Clone)]
+pub struct HistogramWithSum {
+    histogram: Histogram<usize>,
+    sum: u64,
+}
+impl HistogramWithSum {
+    fn new(bounds: Option<(u64, u64)>) -> Self {
+        let h = match bounds {
+            None => Histogram::<usize>::new(HISTOGRAM_PRECISION),
+            Some((l, h)) => Histogram::<usize>::new_with_bounds(l, h, HISTOGRAM_PRECISION),
+        };
+        let histogram = h.expect("failed to create histogram");
+        HistogramWithSum { histogram, sum: 0 }
+    }
+
+    fn record(&mut self, v: u64) {
+        if let Err(e) = self.histogram.record(v) {
+            error!("failed to add value to histogram: {:?}", e);
+        }
+        if v >= ::std::u64::MAX - self.sum {
+            self.sum = ::std::u64::MAX
+        } else {
+            self.sum += v;
+        }
+    }
+
+    pub fn histogram(&self) -> &Histogram<usize> {
+        &self.histogram
+    }
+
+    pub fn count(&self) -> u64 {
+        self.histogram.count()
+    }
+    pub fn sum(&self) -> u64 {
+        self.sum
+    }
+    pub fn max(&self) -> u64 {
+        self.histogram.max()
+    }
+    pub fn min(&self) -> u64 {
+        self.histogram.min()
+    }
+
+    pub fn clear(&mut self) {
+        self.histogram.clear();
+        self.sum = 0;
+    }
+}
+
 /// Caputres a distribution of values.
 #[derive(Clone)]
 pub struct Stat {
-    histo: Weak<Mutex<Histogram<usize>>>,
+    histo: Weak<Mutex<HistogramWithSum>>,
     bounds: Option<(u64, u64)>,
 }
-
-const HISTOGRAM_PRECISION: u32 = 4;
 
 impl Stat {
     pub fn add(&self, v: u64) {
@@ -233,9 +276,7 @@ impl Stat {
         if let Some(h) = self.histo.upgrade() {
             let mut histo = h.lock().expect("failed to obtain lock for stat");
             for v in vs {
-                if let Err(e) = histo.record(*v) {
-                    error!("failed to add value to histogram: {:?}", e);
-                }
+                histo.record(*v)
             }
         }
     }

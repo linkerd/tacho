@@ -1,12 +1,11 @@
-use super::{Key, Registry, CounterMap, GaugeMap};
-use hdrsample::Histogram;
+use super::{Key, HistogramWithSum, Registry, CounterMap, GaugeMap};
 use ordermap::OrderMap;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::Ordering;
 
 type ReportCounterMap = OrderMap<Key, usize>;
 type ReportGaugeMap = OrderMap<Key, usize>;
-type ReportStatMap = OrderMap<Key, Histogram<usize>>;
+type ReportStatMap = OrderMap<Key, HistogramWithSum>;
 
 pub fn new(registry: Arc<Mutex<Registry>>) -> Reporter {
     Reporter(registry)

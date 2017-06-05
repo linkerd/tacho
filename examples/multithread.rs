@@ -81,5 +81,6 @@ fn reporter<D>(interval: Duration, done: D, reporter: tacho::Reporter) -> BoxFut
 }
 
 fn print_report(report: &tacho::Report) {
-    info!("\n{}", tacho::prometheus::format(report));
+    let out = tacho::prometheus::string(report).unwrap();
+    info!("\n{}", out);
 }

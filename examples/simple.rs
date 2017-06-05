@@ -22,7 +22,7 @@ fn main() {
                      let r = reporter.peek();
                      println!("# metrics:");
                      println!("");
-                     println!("{}", tacho::prometheus::format(&r));
+                     println!("{}", tacho::prometheus::string(&r).unwrap());
                  })
     });
 
