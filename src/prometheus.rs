@@ -27,10 +27,12 @@ pub fn write<W>(out: &mut W, report: &Report) -> fmt::Result
         let name = FmtName::new(k.prefix(), k.name());
         let labels = k.labels().into();
 
-        /// XXX for the time being, we export both quantiles and buckets so that we can
-        /// compare.
         let histogram = h.histogram();
-        write_quantiles(out, &name, &labels, histogram)?;
+        if false {
+            /// XXX for the time being, we export both quantiles and buckets so that we can
+            /// compare.
+            write_quantiles(out, &name, &labels, histogram)?;
+        }
         write_buckets(out, &name, &labels, histogram)?;
 
         write_stat(out, &format_args!("{}_{}", name, "min"), &labels, &h.min())?;
@@ -70,7 +72,9 @@ fn write_buckets<N, W>(out: &mut W,
     if count > 0 {
         write_bucket(out, name, labels, &h.max(), accum)?; // Be explicit about the last bucket.
     }
-    write_bucket(out, name, labels, &"+Inf", accum)?; // Required to tell prom that the total count.
+    if accum > 0 {
+        write_bucket(out, name, labels, &"+Inf", accum)?; // Required to tell prom that the total count.
+    }
     Ok(())
 }
 
