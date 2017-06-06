@@ -1,6 +1,6 @@
 use super::Report;
 use hdrsample::Histogram;
-use std::fmt::{self, Display, Write};
+use std::fmt;
 
 pub fn string(report: &Report) -> Result<String, fmt::Error> {
     let mut out = String::with_capacity(16 * 1024);
@@ -9,7 +9,9 @@ pub fn string(report: &Report) -> Result<String, fmt::Error> {
 }
 
 /// Renders a `Report` for Prometheus.
-pub fn write<W: Write>(out: &mut W, report: &Report) -> fmt::Result {
+pub fn write<W>(out: &mut W, report: &Report) -> fmt::Result
+    where W: fmt::Write
+{
     for (k, v) in report.counters() {
         let labels = FmtLabels::new(k.labels());
         if labels.is_empty() {
@@ -56,7 +58,7 @@ fn write_buckets<N, W>(out: &mut W,
                        h: &Histogram<usize>)
                        -> fmt::Result
     where N: fmt::Display,
-          W: Write
+          W: fmt::Write
 {
     let mut accum = 0;
     // XXX for now just dump all
@@ -79,7 +81,7 @@ fn write_bucket<N, M, W>(out: &mut W,
                          -> fmt::Result
     where N: fmt::Display,
           M: fmt::Display,
-          W: Write
+          W: fmt::Write
 {
     let labels = labels.with_extra("le", format!("{}", le));
     write_stat(out, &format_args!("{}_bucket", name), &labels, &count)
@@ -91,7 +93,7 @@ fn write_quantiles<N, W>(out: &mut W,
                          h: &Histogram<usize>)
                          -> fmt::Result
     where N: fmt::Display,
-          W: Write
+          W: fmt::Write
 {
     write_quantile(out, 0.5, name, labels, h)?;
     write_quantile(out, 0.9, name, labels, h)?;
@@ -109,22 +111,25 @@ fn write_quantile<N, W>(out: &mut W,
                         h: &Histogram<usize>)
                         -> fmt::Result
     where N: fmt::Display,
-          W: Write
+          W: fmt::Write
 {
     let labels = labels.with_extra("quantile", format!("{}", quantile));
     write_stat(out, name, &labels, &h.value_at_percentile(quantile * 100.0))
 }
 
-fn write_stat<N: Display, V: Display, W: Write>(out: &mut W,
-                                                name: &N,
-                                                labels: &FmtLabels,
-                                                v: &V)
-                                                -> fmt::Result {
+fn write_stat<W, N, V>(out: &mut W, name: &N, labels: &FmtLabels, v: &V) -> fmt::Result
+    where W: fmt::Write,
+          N: fmt::Display,
+          V: fmt::Display
+{
     writeln!(out, "{}{{{}}} {}", name, labels, v)
 }
 
+/// Supports formatting labels.
 struct FmtLabels<'a> {
+    /// Labels from the original Key.
     base: &'a super::Labels,
+    /// Export-specific labels.
     extra: super::Labels,
 }
 impl<'a> FmtLabels<'a> {
@@ -139,6 +144,7 @@ impl<'a> FmtLabels<'a> {
         self.base.is_empty() && self.extra.is_empty()
     }
 
+    /// Creates a new FmtLabels sharing a common `base` with a new copy of `extra`.
     fn with_extra(&'a self, k: &'static str, v: String) -> FmtLabels<'a> {
         let mut extra = self.extra.clone();
         extra.insert(k, v);
