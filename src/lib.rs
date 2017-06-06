@@ -42,6 +42,16 @@ type CounterMap = OrderMap<Key, Arc<AtomicUsize>>;
 type GaugeMap = OrderMap<Key, Arc<AtomicUsize>>;
 type StatMap = OrderMap<Key, Arc<Mutex<HistogramWithSum>>>;
 
+#[derive(Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
+pub enum Prefix {
+    Root,
+    Node {
+        prefix: Arc<Prefix>,
+        value: &'static str,
+    },
+}
+
+
 /// Creates a metrics registry.
 ///
 /// The returned `Scope` may be you used to instantiate metrics. Labels may be attached to
@@ -53,6 +63,7 @@ pub fn new() -> (Scope, Reporter) {
 
     let scope = Scope {
         labels: Labels::default(),
+        prefix: Arc::new(Prefix::Root),
         registry: registry.clone(),
     };
 
@@ -63,18 +74,23 @@ pub fn new() -> (Scope, Reporter) {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Key {
     name: &'static str,
+    prefix: Arc<Prefix>,
     labels: Labels,
 }
 impl Key {
-    fn new(name: &'static str, labels: Labels) -> Key {
+    fn new(name: &'static str, prefix: Arc<Prefix>, labels: Labels) -> Key {
         Key {
-            name: name,
-            labels: labels,
+            name,
+            prefix,
+            labels,
         }
     }
 
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> &'static str {
         self.name
+    }
+    pub fn prefix(&self) -> &Arc<Prefix> {
+        &self.prefix
     }
     pub fn labels(&self) -> &Labels {
         &self.labels
@@ -97,6 +113,7 @@ pub struct Registry {
 #[derive(Clone)]
 pub struct Scope {
     labels: Labels,
+    prefix: Arc<Prefix>,
     registry: Arc<Mutex<Registry>>,
 }
 
@@ -107,14 +124,24 @@ impl Scope {
     }
 
     /// Adds a label into scope (potentially overwriting).
-    pub fn labeled(mut self, k: &'static str, v: String) -> Scope {
+    pub fn labeled(mut self, k: &'static str, v: String) -> Self {
         self.labels.insert(k, v);
+        self
+    }
+
+    /// Appends a prefix to the current scope.
+    pub fn prefixed(mut self, value: &'static str) -> Self {
+        let p = Prefix::Node {
+            prefix: self.prefix,
+            value,
+        };
+        self.prefix = Arc::new(p);
         self
     }
 
     /// Creates a Counter with the given name.
     pub fn counter(&self, name: &'static str) -> Counter {
-        let key = Key::new(name, self.labels.clone());
+        let key = Key::new(name, self.prefix.clone(), self.labels.clone());
         let mut reg = self.registry
             .lock()
             .expect("failed to obtain lock on registry");
@@ -131,7 +158,7 @@ impl Scope {
 
     /// Creates a Gauge with the given name.
     pub fn gauge(&self, name: &'static str) -> Gauge {
-        let key = Key::new(name, self.labels.clone());
+        let key = Key::new(name, self.prefix.clone(), self.labels.clone());
         let mut reg = self.registry
             .lock()
             .expect("failed to obtain lock on registry");
@@ -150,13 +177,13 @@ impl Scope {
     ///
     /// The underlying histogram is automatically resized as values are added.
     pub fn stat(&self, name: &'static str) -> Stat {
-        let key = Key::new(name, self.labels.clone());
+        let key = Key::new(name, self.prefix.clone(), self.labels.clone());
         self.mk_stat(key, None)
     }
 
     /// Creates a Stat with the given name and histogram paramters.
     pub fn stat_with_bounds(&self, name: &'static str, low: u64, high: u64) -> Stat {
-        let key = Key::new(name, self.labels.clone());
+        let key = Key::new(name, self.prefix.clone(), self.labels.clone());
         self.mk_stat(key, Some((low, high)))
     }
 
@@ -434,6 +461,7 @@ mod tests {
     fn mk_scopes(n: usize, name: &str) -> Vec<Scope> {
         let (metrics, _) = super::new();
         let metrics = metrics
+            .prefixed("t")
             .labeled("test_name", name.into())
             .labeled("total_iterations", format!("{}", n));
         (0..n)
