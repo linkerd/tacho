@@ -209,14 +209,21 @@ impl Gauge {
     }
 }
 
+/// Histograms hold up to 4 significant figures.
 const HISTOGRAM_PRECISION: u32 = 4;
 
+/// Tracks a distribution of values with their sum.
+///
+/// `hdrsample::Histogram` does not track a sum by default; but prometheus expects a `sum`
+/// for histograms.
 #[derive(Clone)]
 pub struct HistogramWithSum {
     histogram: Histogram<usize>,
     sum: u64,
 }
+
 impl HistogramWithSum {
+    /// Constructs a new `HistogramWithSum`, possibly with bounds.
     fn new(bounds: Option<(u64, u64)>) -> Self {
         let h = match bounds {
             None => Histogram::<usize>::new(HISTOGRAM_PRECISION),
@@ -226,6 +233,7 @@ impl HistogramWithSum {
         HistogramWithSum { histogram, sum: 0 }
     }
 
+    /// Record a value to
     fn record(&mut self, v: u64) {
         if let Err(e) = self.histogram.record(v) {
             error!("failed to add value to histogram: {:?}", e);
@@ -240,18 +248,17 @@ impl HistogramWithSum {
     pub fn histogram(&self) -> &Histogram<usize> {
         &self.histogram
     }
-
     pub fn count(&self) -> u64 {
         self.histogram.count()
-    }
-    pub fn sum(&self) -> u64 {
-        self.sum
     }
     pub fn max(&self) -> u64 {
         self.histogram.max()
     }
     pub fn min(&self) -> u64 {
         self.histogram.min()
+    }
+    pub fn sum(&self) -> u64 {
+        self.sum
     }
 
     pub fn clear(&mut self) {

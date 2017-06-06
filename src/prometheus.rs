@@ -4,12 +4,12 @@ use std::fmt::{self, Display, Write};
 
 pub fn string(report: &Report) -> Result<String, fmt::Error> {
     let mut out = String::with_capacity(16 * 1024);
-    format(&mut out, report)?;
+    write(&mut out, report)?;
     Ok(out)
 }
 
 /// Renders a `Report` for Prometheus.
-pub fn format<W: Write>(out: &mut W, report: &Report) -> fmt::Result {
+pub fn write<W: Write>(out: &mut W, report: &Report) -> fmt::Result {
     for (k, v) in report.counters() {
         let labels = FmtLabels::new(k.labels());
         if labels.is_empty() {
@@ -32,49 +32,94 @@ pub fn format<W: Write>(out: &mut W, report: &Report) -> fmt::Result {
         let name = k.name();
         let labels = FmtLabels::new(k.labels());
 
-        format_stat(out,
-                    &format_args!("{}_{}", name, "count"),
-                    &labels,
-                    &h.count())?;
-        format_stat(out, &format_args!("{}_{}", name, "min"), &labels, &h.min())?;
-        format_stat(out, &format_args!("{}_{}", name, "max"), &labels, &h.max())?;
+        write_stat(out,
+                   &format_args!("{}_{}", name, "count"),
+                   &labels,
+                   &h.count())?;
+        write_stat(out, &format_args!("{}_{}", name, "sum"), &labels, &h.sum())?;
+        write_stat(out, &format_args!("{}_{}", name, "min"), &labels, &h.min())?;
+        write_stat(out, &format_args!("{}_{}", name, "max"), &labels, &h.max())?;
 
-        /// XXX for the time being, we export both quantiles and buckets so that we can come up
-        format_quantiles(out, &name, &labels, h.histogram())?;
+        /// XXX for the time being, we export both quantiles and buckets so that we can
+        /// compare.
+        let histogram = h.histogram();
+        write_quantiles(out, &name, &labels, histogram)?;
+        write_buckets(out, &name, &labels, histogram)?;
     }
 
     Ok(())
 }
 
-fn format_quantiles<N: fmt::Display, W: Write>(out: &mut W,
-                                               name: &N,
-                                               labels: &FmtLabels,
-                                               h: &Histogram<usize>)
-                                               -> fmt::Result {
-    format_quantile(out, 0.5, name, labels, h)?;
-    format_quantile(out, 0.9, name, labels, h)?;
-    format_quantile(out, 0.95, name, labels, h)?;
-    format_quantile(out, 0.99, name, labels, h)?;
-    format_quantile(out, 0.999, name, labels, h)?;
-    format_quantile(out, 0.9999, name, labels, h)?;
+fn write_buckets<N, W>(out: &mut W,
+                       name: &N,
+                       labels: &FmtLabels,
+                       h: &Histogram<usize>)
+                       -> fmt::Result
+    where N: fmt::Display,
+          W: Write
+{
+    let mut accum = 0;
+    // XXX for now just dump all
+    for bucket in h.iter_recorded() {
+        if accum > 0 {
+            write_bucket(out, name, labels, &(bucket.value() - 1), accum)?;
+        }
+        accum += bucket.count_at_value();
+    }
+    write_bucket(out, name, labels, &h.max(), accum)?; // Be explicit about the last bucket.
+    write_bucket(out, name, labels, &"+Inf", accum)?; // Required to tell prom that this is the total.
     Ok(())
 }
 
-fn format_quantile<N: fmt::Display, W: Write>(out: &mut W,
-                                              quantile: f64,
-                                              name: &N,
-                                              labels: &FmtLabels,
-                                              h: &Histogram<usize>)
-                                              -> fmt::Result {
-    let labels = labels.with_extra("quantile", format!("{}", quantile));
-    format_stat(out, name, &labels, &h.value_at_percentile(quantile * 100.0))
+fn write_bucket<N, M, W>(out: &mut W,
+                         name: &N,
+                         labels: &FmtLabels,
+                         le: &M,
+                         count: usize)
+                         -> fmt::Result
+    where N: fmt::Display,
+          M: fmt::Display,
+          W: Write
+{
+    let labels = labels.with_extra("le", format!("{}", le));
+    write_stat(out, &format_args!("{}_bucket", name), &labels, &count)
 }
 
-fn format_stat<N: Display, V: Display, W: Write>(out: &mut W,
-                                                 name: &N,
-                                                 labels: &FmtLabels,
-                                                 v: &V)
-                                                 -> fmt::Result {
+fn write_quantiles<N, W>(out: &mut W,
+                         name: &N,
+                         labels: &FmtLabels,
+                         h: &Histogram<usize>)
+                         -> fmt::Result
+    where N: fmt::Display,
+          W: Write
+{
+    write_quantile(out, 0.5, name, labels, h)?;
+    write_quantile(out, 0.9, name, labels, h)?;
+    write_quantile(out, 0.95, name, labels, h)?;
+    write_quantile(out, 0.99, name, labels, h)?;
+    write_quantile(out, 0.999, name, labels, h)?;
+    write_quantile(out, 0.9999, name, labels, h)?;
+    Ok(())
+}
+
+fn write_quantile<N, W>(out: &mut W,
+                        quantile: f64,
+                        name: &N,
+                        labels: &FmtLabels,
+                        h: &Histogram<usize>)
+                        -> fmt::Result
+    where N: fmt::Display,
+          W: Write
+{
+    let labels = labels.with_extra("quantile", format!("{}", quantile));
+    write_stat(out, name, &labels, &h.value_at_percentile(quantile * 100.0))
+}
+
+fn write_stat<N: Display, V: Display, W: Write>(out: &mut W,
+                                                name: &N,
+                                                labels: &FmtLabels,
+                                                v: &V)
+                                                -> fmt::Result {
     writeln!(out, "{}{{{}}} {}", name, labels, v)
 }
 
