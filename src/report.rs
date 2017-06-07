@@ -1,4 +1,4 @@
-use super::{Key, HistogramWithSum, Registry, CounterMap, GaugeMap};
+use super::{Key, HistogramWithSum, Registry, CounterMap, GaugeMap, StatMap};
 use ordermap::OrderMap;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::Ordering;
@@ -18,51 +18,29 @@ impl Reporter {
     /// Obtains a read-only view of a metrics report without clearing the underlying state.
     pub fn peek(&self) -> Report {
         let registry = self.0.lock().unwrap();
-        let counters = snap_counters(&registry.counters);
-        let gauges = snap_gauges(&registry.gauges);
-        let stats = {
-            let mut snap = ReportStatMap::with_capacity(registry.stats.len());
-            for (k, v) in &registry.stats {
-                let v = v.lock().unwrap();
-                snap.insert(k.clone(), v.clone());
-            }
-            snap
-        };
         Report {
-            counters,
-            gauges,
-            stats,
+            counters: snap_counters(&registry.counters),
+            gauges: snap_gauges(&registry.gauges),
+            stats: snap_stats(&registry.stats, false),
         }
     }
 
     /// Obtains a Report and removes unused metrics.
     pub fn take(&mut self) -> Report {
         let mut registry = self.0.lock().unwrap();
-        let counters = {
-            let snap = snap_counters(&registry.counters);
-            registry.counters.retain(|_, v| Arc::weak_count(v) > 0);
-            snap
+
+        let report = Report {
+            counters: snap_counters(&registry.counters),
+            gauges: snap_gauges(&registry.gauges),
+            stats: snap_stats(&registry.stats, true),
         };
-        let gauges = {
-            let snap = snap_gauges(&registry.gauges);
-            registry.gauges.retain(|_, v| Arc::weak_count(v) > 0);
-            snap
-        };
-        let stats = {
-            let mut snap = ReportStatMap::with_capacity(registry.stats.len());
-            for (k, ptr) in registry.stats.iter_mut() {
-                let mut orig = ptr.lock().unwrap();
-                snap.insert(k.clone(), orig.clone());
-                orig.clear();
-            }
-            registry.stats.retain(|_, v| Arc::weak_count(v) > 0);
-            snap
-        };
-        Report {
-            counters,
-            gauges,
-            stats,
-        }
+
+        // Drop unreferenced metrics.
+        registry.counters.retain(|_, v| Arc::weak_count(v) > 0);
+        registry.gauges.retain(|_, v| Arc::weak_count(v) > 0);
+        registry.stats.retain(|_, v| Arc::weak_count(v) > 0);
+
+        report
     }
 }
 
@@ -80,6 +58,18 @@ fn snap_gauges(gauges: &GaugeMap) -> ReportGaugeMap {
     for (k, v) in &*gauges {
         let v = v.load(Ordering::Acquire);
         snap.insert(k.clone(), v);
+    }
+    snap
+}
+
+fn snap_stats(stats: &StatMap, clear: bool) -> ReportStatMap {
+    let mut snap = ReportStatMap::with_capacity(stats.len());
+    for (k, ptr) in &*stats {
+        let mut orig = ptr.lock().unwrap();
+        snap.insert(k.clone(), orig.clone());
+        if clear {
+            orig.clear();
+        }
     }
     snap
 }

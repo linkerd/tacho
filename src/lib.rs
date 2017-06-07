@@ -226,16 +226,22 @@ impl Gauge {
     pub fn incr(&self, v: usize) {
         if let Some(g) = self.0.upgrade() {
             g.fetch_add(v, Ordering::AcqRel);
+        } else {
+            debug!("gauge dropped");
         }
     }
     pub fn decr(&self, v: usize) {
         if let Some(g) = self.0.upgrade() {
             g.fetch_sub(v, Ordering::AcqRel);
+        } else {
+            debug!("gauge dropped");
         }
     }
     pub fn set(&self, v: usize) {
         if let Some(g) = self.0.upgrade() {
             g.store(v, Ordering::Release);
+        } else {
+            debug!("gauge dropped");
         }
     }
 }
