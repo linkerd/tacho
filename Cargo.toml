@@ -9,12 +9,12 @@ license = "Apache-2.0"
 readme = "README.md"
 
 [dependencies]
+futures = "0.1"
 hdrsample = "3.0"
 log = "0.3"
 ordermap = "0.2.10"
 
 [dev-dependencies]
 tokio-timer = "0.1"
-futures = "0.1"
 tokio-core = "0.1"
 pretty_env_logger = "0.1"

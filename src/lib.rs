@@ -18,17 +18,21 @@
 // For benchmarks.
 #![feature(test)]
 
+extern crate futures;
 extern crate hdrsample;
 #[macro_use]
 extern crate log;
 extern crate ordermap;
 extern crate test;
 
+use futures::Future;
 use hdrsample::Histogram;
 use ordermap::OrderMap;
+use std::boxed::Box;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Instant;
 
 pub mod prometheus;
 mod report;
@@ -303,7 +307,10 @@ pub struct Stat {
 
 impl Stat {
     pub fn add(&self, v: u64) {
-        self.add_values(&[v]);
+        if let Some(h) = self.histo.upgrade() {
+            let mut histo = h.lock().expect("failed to obtain lock for stat");
+            histo.record(v);
+        }
     }
 
     pub fn add_values(&self, vs: &[u64]) {
@@ -311,6 +318,40 @@ impl Stat {
             let mut histo = h.lock().expect("failed to obtain lock for stat");
             for v in vs {
                 histo.record(*v)
+            }
+        }
+    }
+
+    pub fn add_timing_ms<F>(&self, fut: F) -> Box<Future<Item = F::Item, Error = F::Error>>
+        where F: Future + 'static
+    {
+        self.add_timing(fut, |t| t.elapsed_ms())
+    }
+
+    pub fn add_timing_us<F>(&self, fut: F) -> Box<Future<Item = F::Item, Error = F::Error>>
+        where F: Future + 'static
+    {
+        self.add_timing(fut, |t| t.elapsed_us())
+    }
+
+    pub fn add_timing<F, S>(&self, fut: F, snap: S) -> Box<Future<Item = F::Item, Error = F::Error>>
+        where F: Future + 'static,
+              S: FnOnce(Instant) -> u64 + 'static
+    {
+        match self.histo.upgrade() {
+            None => Box::new(fut),
+            Some(h) => {
+                let f = futures::lazy(|| {
+                    // Start timing once the future is actually being invoked (and not
+                    // when the object is created).
+                    let t0 = Timing::start();
+                    fut.map(move |v| {
+                                let mut histo = h.lock().expect("failed to obtain lock for stat");
+                                histo.record(snap(t0));
+                                v
+                            })
+                });
+                Box::new(f)
             }
         }
     }
