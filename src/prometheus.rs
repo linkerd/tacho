@@ -59,7 +59,7 @@ fn write_buckets<N, W>(out: &mut W,
     // however prometheus expects maximum values with cumulative counts.
     //
     // XXX Currently, we use the highest-granularity histogram available. This probably
-    // isn't practical in some contexts.
+    // isn't practical.
     let mut accum = 0;
     let mut count = 0;
     for bucket in h.iter_recorded() {

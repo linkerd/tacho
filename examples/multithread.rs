@@ -32,7 +32,7 @@ fn main() {
         reporter(interval, work_done_rx, report)
     };
 
-    let metrics = metrics.clone().labeled("test", "multithread_stat".into());
+    let metrics = metrics.clone().labeled("test", "multithread_stat");
     let loop_iter_us = metrics.stat("loop_iter_us");
     for (i, work_done_tx) in vec![(0, work_done_tx0), (1, work_done_tx1)] {
         let metrics = metrics.clone().labeled("thread", format!("{}", i));

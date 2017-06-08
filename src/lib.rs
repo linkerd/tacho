@@ -25,14 +25,14 @@ extern crate log;
 extern crate ordermap;
 extern crate test;
 
-use futures::Future;
+use futures::{Future, Poll};
 use hdrsample::Histogram;
 use ordermap::OrderMap;
 use std::boxed::Box;
 use std::collections::BTreeMap;
+use std::fmt;
 use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::Instant;
 
 pub mod prometheus;
 mod report;
@@ -128,8 +128,8 @@ impl Scope {
     }
 
     /// Adds a label into scope (potentially overwriting).
-    pub fn labeled(mut self, k: &'static str, v: String) -> Self {
-        self.labels.insert(k, v);
+    pub fn labeled<D: fmt::Display>(mut self, k: &'static str, v: D) -> Self {
+        self.labels.insert(k, format!("{}", v));
         self
     }
 
@@ -183,6 +183,20 @@ impl Scope {
     pub fn stat(&self, name: &'static str) -> Stat {
         let key = Key::new(name, self.prefix.clone(), self.labels.clone());
         self.mk_stat(key, None)
+    }
+
+    pub fn timer_us(&self, name: &'static str) -> Timer {
+        Timer {
+            stat: self.stat(name),
+            unit: TimeUnit::Micros,
+        }
+    }
+
+    pub fn timer_ms(&self, name: &'static str) -> Timer {
+        Timer {
+            stat: self.stat(name),
+            unit: TimeUnit::Millis,
+        }
     }
 
     /// Creates a Stat with the given name and histogram paramters.
@@ -327,39 +341,48 @@ impl Stat {
             }
         }
     }
+}
 
-    pub fn add_timing_ms<F>(&self, fut: F) -> Box<Future<Item = F::Item, Error = F::Error>>
+#[derive(Clone)]
+pub struct Timer {
+    stat: Stat,
+    unit: TimeUnit,
+}
+#[derive(Copy, Clone)]
+pub enum TimeUnit {
+    Millis,
+    Micros,
+}
+impl Timer {
+    pub fn time<F>(&self, fut: F) -> Timed<F>
         where F: Future + 'static
     {
-        self.add_timing(fut, |t| t.elapsed_ms())
+        let stat = self.stat.clone();
+        let unit = self.unit;
+        let f = futures::lazy(move || {
+            // Start timing once the future is actually being invoked (and not
+            // when the object is created).
+            let t0 = Timing::start();
+            fut.then(move |v| {
+                         let t = match unit {
+                             TimeUnit::Millis => t0.elapsed_ms(),
+                             TimeUnit::Micros => t0.elapsed_us(),
+                         };
+                         stat.add(t);
+                         v
+                     })
+        });
+        Timed(Box::new(f))
     }
+}
 
-    pub fn add_timing_us<F>(&self, fut: F) -> Box<Future<Item = F::Item, Error = F::Error>>
-        where F: Future + 'static
-    {
-        self.add_timing(fut, |t| t.elapsed_us())
-    }
 
-    pub fn add_timing<F, S>(&self, fut: F, snap: S) -> Box<Future<Item = F::Item, Error = F::Error>>
-        where F: Future + 'static,
-              S: FnOnce(Instant) -> u64 + 'static
-    {
-        match self.histo.upgrade() {
-            None => Box::new(fut),
-            Some(h) => {
-                let f = futures::lazy(|| {
-                    // Start timing once the future is actually being invoked (and not
-                    // when the object is created).
-                    let t0 = Timing::start();
-                    fut.map(move |v| {
-                                let mut histo = h.lock().expect("failed to obtain lock for stat");
-                                histo.record(snap(t0));
-                                v
-                            })
-                });
-                Box::new(f)
-            }
-        }
+pub struct Timed<F: Future>(Box<Future<Item = F::Item, Error = F::Error>>);
+impl<F: Future> Future for Timed<F> {
+    type Item = F::Item;
+    type Error = F::Error;
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        self.0.poll()
     }
 }
 
@@ -379,7 +402,7 @@ mod tests {
     #[bench]
     fn bench_scope_label(b: &mut Bencher) {
         let (metrics, _) = super::new();
-        b.iter(move || { let _ = metrics.clone().labeled("foo", "bar".into()); });
+        b.iter(move || { let _ = metrics.clone().labeled("foo", "bar"); });
     }
 
     #[bench]
@@ -394,7 +417,7 @@ mod tests {
     fn bench_scope_label_x1000(b: &mut Bencher) {
         let scopes = mk_scopes(1000, "bench_scope_label_x1000");
         b.iter(move || for scope in &scopes {
-                   let _ = scope.clone().labeled("foo", "bar".into());
+                   let _ = scope.clone().labeled("foo", "bar");
                });
     }
 
@@ -509,8 +532,8 @@ mod tests {
         let (metrics, _) = super::new();
         let metrics = metrics
             .prefixed("t")
-            .labeled("test_name", name.into())
-            .labeled("total_iterations", format!("{}", n));
+            .labeled("test_name", name)
+            .labeled("total_iterations", n);
         (0..n)
             .map(|i| metrics.clone().labeled("iteration", format!("{}", i)))
             .collect()
@@ -519,7 +542,7 @@ mod tests {
     #[test]
     fn test_report_peek() {
         let (metrics, reporter) = super::new();
-        let metrics = metrics.labeled("joy", "painting".into());
+        let metrics = metrics.labeled("joy", "painting");
 
         let happy_accidents = metrics.counter("happy_accidents");
         let paint_level = metrics.gauge("paint_level");
@@ -625,7 +648,7 @@ mod tests {
     #[test]
     fn test_report_take() {
         let (metrics, mut reporter) = super::new();
-        let metrics = metrics.labeled("joy", "painting".into());
+        let metrics = metrics.labeled("joy", "painting");
 
         let happy_accidents = metrics.counter("happy_accidents");
         let paint_level = metrics.gauge("paint_level");

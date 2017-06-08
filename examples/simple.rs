@@ -31,7 +31,7 @@ fn main() {
 }
 
 fn do_work(metrics: tacho::Scope) -> future::BoxFuture<(), ()> {
-    let metrics = metrics.labeled("labelkey".into(), "labelval".into());
+    let metrics = metrics.labeled("labelkey", "labelval");
     let iter_time_us = metrics.stat("iter_time_us".into());
     let timer = Timer::default();
     future::loop_fn(100, move |n| {
