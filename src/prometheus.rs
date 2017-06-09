@@ -62,10 +62,12 @@ fn write_buckets<N, W>(out: &mut W,
         accum += count;
     }
     if count > 0 {
-        write_bucket(out, name, labels, &h.max(), accum)?; // Be explicit about the last bucket.
+        // Be explicit about the last bucket.
+        write_bucket(out, name, labels, &h.max(), accum)?;
     }
     if accum > 0 {
-        write_bucket(out, name, labels, &"+Inf", accum)?; // Required to tell prom that the total count.
+        // Required to tell prom that the total count.
+        write_bucket(out, name, labels, &"+Inf", accum)?;
     }
     Ok(())
 }
