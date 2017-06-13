@@ -32,15 +32,13 @@ fn main() {
         reporter(interval, work_done_rx, report)
     };
 
-    let metrics = metrics
-        .clone()
-        .labeled("test".into(), "multithread_stat".into());
-    let loop_iter_us = metrics.stat("loop_iter_us".into());
+    let metrics = metrics.clone().labeled("test", "multithread");
+    let loop_iter_us = metrics.stat("loop_iter_us");
     for (i, work_done_tx) in vec![(0, work_done_tx0), (1, work_done_tx1)] {
         let metrics = metrics.clone().labeled("thread".into(), format!("{}", i));
-        let mut loop_counter = metrics.counter("loop_counter".into());
-        let mut current_iter = metrics.gauge("current_iter".into());
-        let mut loop_iter_us = loop_iter_us.clone();
+        let loop_counter = metrics.counter("loop_counter".into());
+        let current_iter = metrics.gauge("current_iter".into());
+        let loop_iter_us = loop_iter_us.clone();
         thread::spawn(move || {
             let mut prior = None;
             for i in 0..10_000_000 {
@@ -82,6 +80,7 @@ fn reporter<D>(interval: Duration, done: D, reporter: tacho::Reporter) -> BoxFut
     periodic.select(done).map(|_| {}).map_err(|_| {}).boxed()
 }
 
-fn print_report<R: tacho::Report>(report: &R) {
-    info!("\n{}", tacho::prometheus::format(report));
+fn print_report(report: &tacho::Report) {
+    let out = tacho::prometheus::string(report).unwrap();
+    info!("\n{}", out);
 }

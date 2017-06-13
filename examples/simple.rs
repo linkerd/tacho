@@ -22,7 +22,7 @@ fn main() {
                      let r = reporter.peek();
                      println!("# metrics:");
                      println!("");
-                     println!("{}", tacho::prometheus::format(&r));
+                     println!("{}", tacho::prometheus::string(&r).unwrap());
                  })
     });
 
@@ -31,12 +31,12 @@ fn main() {
 }
 
 fn do_work(metrics: tacho::Scope) -> future::BoxFuture<(), ()> {
-    let metrics = metrics.labeled("labelkey".into(), "labelval".into());
+    let metrics = metrics.labeled("labelkey", "labelval");
     let iter_time_us = metrics.stat("iter_time_us".into());
     let timer = Timer::default();
-    future::loop_fn(100, move |n| {
+    let work = future::loop_fn(100, move |n| {
         // Clones are shallow, minimizing allocation.
-        let mut iter_time_us = iter_time_us.clone();
+        let iter_time_us = iter_time_us.clone();
 
         let start = Timing::start();
         timer
@@ -48,7 +48,6 @@ fn do_work(metrics: tacho::Scope) -> future::BoxFuture<(), ()> {
                      iter_time_us.add(start.elapsed_us());
                      future::Loop::Continue(n - 1)
                  })
-    })
-            .map(|_| {})
-            .boxed()
+    });
+    work.map(|_| {}).boxed()
 }

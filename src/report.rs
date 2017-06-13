@@ -1,141 +1,98 @@
-use super::{CounterMap, GaugeMap, StatMap};
-use std::sync::{Arc, Mutex, MutexGuard};
+use super::{Key, HistogramWithSum, Registry, CounterMap, GaugeMap, StatMap};
+use ordermap::OrderMap;
+use std::sync::{Arc, Mutex};
+use std::sync::atomic::Ordering;
 
-pub fn new(counters: Arc<Mutex<CounterMap>>,
-           gauges: Arc<Mutex<GaugeMap>>,
-           stats: Arc<Mutex<StatMap>>)
-           -> Reporter {
-    Reporter {
-        counters: counters,
-        gauges: gauges,
-        stats: stats,
-    }
+type ReportCounterMap = OrderMap<Key, usize>;
+type ReportGaugeMap = OrderMap<Key, usize>;
+type ReportStatMap = OrderMap<Key, HistogramWithSum>;
+
+pub fn new(registry: Arc<Mutex<Registry>>) -> Reporter {
+    Reporter(registry)
 }
 
 #[derive(Clone)]
-pub struct Reporter {
-    counters: Arc<Mutex<CounterMap>>,
-    gauges: Arc<Mutex<GaugeMap>>,
-    stats: Arc<Mutex<StatMap>>,
-}
+pub struct Reporter(Arc<Mutex<Registry>>);
 
 impl Reporter {
     /// Obtains a read-only view of a metrics report without clearing the underlying state.
-    pub fn peek(&self) -> ReportPeek {
-        let counters = self.counters
-            .lock()
-            .expect("failed to obtain read lock for counters");
-        let gauges = self.gauges
-            .lock()
-            .expect("failed to obtain read lock for gauges");
-        let stats = self.stats
-            .lock()
-            .expect("failed to obtain read lock for stats");
-        ReportPeek {
-            counters: counters,
-            gauges: gauges,
-            stats: stats,
+    pub fn peek(&self) -> Report {
+        let registry = self.0.lock().unwrap();
+        Report {
+            counters: snap_counters(&registry.counters),
+            gauges: snap_gauges(&registry.gauges),
+            stats: snap_stats(&registry.stats, false),
         }
     }
 
-    /// Obtains a Report and clears the underlying gauges and stats.
-    ///
-    /// Counters are copied and not cleared because counters are absolute and increasing.
-    pub fn take(&mut self) -> ReportTake {
-        // Copy counters.
-        let counters: CounterMap = {
-            let orig = self.counters
-                .lock()
-                .expect("failed to obtain write lock for counters");
-            let mut snap = CounterMap::default();
-            for (k, v) in orig.iter() {
-                snap.insert(k.clone(), *v);
-            }
-            snap
+    /// Obtains a Report and removes unused metrics.
+    pub fn take(&mut self) -> Report {
+        let mut registry = self.0.lock().unwrap();
+
+        let report = Report {
+            counters: snap_counters(&registry.counters),
+            gauges: snap_gauges(&registry.gauges),
+            stats: snap_stats(&registry.stats, true),
         };
 
-        // Reset gauges.
-        let gauges = {
-            let mut orig = self.gauges
-                .lock()
-                .expect("failed to obtain write lock for gauges");
-            let mut snap = GaugeMap::default();
-            for (k, v) in orig.drain(..) {
-                snap.insert(k, v);
-            }
-            snap
-        };
+        // Drop unreferenced metrics.
+        registry.counters.retain(|_, v| Arc::weak_count(v) > 0);
+        registry.gauges.retain(|_, v| Arc::weak_count(v) > 0);
+        registry.stats.retain(|_, v| Arc::weak_count(v) > 0);
 
-        // Reset stats.
-        let stats = {
-            let mut orig = self.stats
-                .lock()
-                .expect("failed to obtain write lock for stats");
-            let mut snap = StatMap::default();
-            for (k, v) in orig.drain(..) {
-                snap.insert(k, v);
-            }
-            snap
-        };
+        report
+    }
+}
 
-        ReportTake {
-            counters: counters,
-            gauges: gauges,
-            stats: stats,
+fn snap_counters(counters: &CounterMap) -> ReportCounterMap {
+    let mut snap = ReportCounterMap::with_capacity(counters.len());
+    for (k, v) in &*counters {
+        let v = v.load(Ordering::Acquire);
+        snap.insert(k.clone(), v);
+    }
+    snap
+}
+
+fn snap_gauges(gauges: &GaugeMap) -> ReportGaugeMap {
+    let mut snap = ReportGaugeMap::with_capacity(gauges.len());
+    for (k, v) in &*gauges {
+        let v = v.load(Ordering::Acquire);
+        snap.insert(k.clone(), v);
+    }
+    snap
+}
+
+fn snap_stats(stats: &StatMap, clear: bool) -> ReportStatMap {
+    let mut snap = ReportStatMap::with_capacity(stats.len());
+    for (k, ptr) in &*stats {
+        let mut orig = ptr.lock().unwrap();
+        snap.insert(k.clone(), orig.clone());
+        if clear {
+            orig.clear();
         }
     }
+    snap
 }
 
-pub trait Report {
-    fn is_empty(&self) -> bool;
-    fn len(&self) -> usize;
-    fn counters(&self) -> &CounterMap;
-    fn gauges(&self) -> &GaugeMap;
-    fn stats(&self) -> &StatMap;
+pub struct Report {
+    counters: ReportCounterMap,
+    gauges: ReportGaugeMap,
+    stats: ReportStatMap,
 }
-
-pub struct ReportPeek<'a> {
-    counters: MutexGuard<'a, CounterMap>,
-    gauges: MutexGuard<'a, GaugeMap>,
-    stats: MutexGuard<'a, StatMap>,
-}
-impl<'a> Report for ReportPeek<'a> {
-    fn counters(&self) -> &CounterMap {
+impl Report {
+    pub fn counters(&self) -> &ReportCounterMap {
         &self.counters
     }
-    fn gauges(&self) -> &GaugeMap {
+    pub fn gauges(&self) -> &ReportGaugeMap {
         &self.gauges
     }
-    fn stats(&self) -> &StatMap {
+    pub fn stats(&self) -> &ReportStatMap {
         &self.stats
     }
-    fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.counters.is_empty() && self.gauges.is_empty() && self.stats.is_empty()
     }
-    fn len(&self) -> usize {
-        self.counters.len() + self.gauges.len() + self.stats.len()
-    }
-}
-
-pub struct ReportTake {
-    pub counters: CounterMap,
-    pub gauges: GaugeMap,
-    pub stats: StatMap,
-}
-impl Report for ReportTake {
-    fn counters(&self) -> &CounterMap {
-        &self.counters
-    }
-    fn gauges(&self) -> &GaugeMap {
-        &self.gauges
-    }
-    fn stats(&self) -> &StatMap {
-        &self.stats
-    }
-    fn is_empty(&self) -> bool {
-        self.counters.is_empty() && self.gauges.is_empty() && self.stats.is_empty()
-    }
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.counters.len() + self.gauges.len() + self.stats.len()
     }
 }
