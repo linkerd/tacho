@@ -30,6 +30,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::{Arc, Mutex, Weak};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Instant;
 
 pub mod prometheus;
 mod report;
@@ -351,6 +352,10 @@ pub enum TimeUnit {
     Micros,
 }
 impl Timer {
+    pub fn record_since(&self, t0: Instant) {
+        self.stat.add(to_u64(t0, self.unit));
+    }
+
     pub fn time<F>(&self, fut: F) -> Timed<F>
         where F: Future + 'static
     {
@@ -361,11 +366,7 @@ impl Timer {
             // when the object is created).
             let t0 = Timing::start();
             fut.then(move |v| {
-                         let t = match unit {
-                             TimeUnit::Millis => t0.elapsed_ms(),
-                             TimeUnit::Micros => t0.elapsed_us(),
-                         };
-                         stat.add(t);
+                         stat.add(to_u64(t0, unit));
                          v
                      })
         });
@@ -373,6 +374,12 @@ impl Timer {
     }
 }
 
+fn to_u64(t0: Instant, unit: TimeUnit) -> u64 {
+    match unit {
+        TimeUnit::Millis => t0.elapsed_ms(),
+        TimeUnit::Micros => t0.elapsed_us(),
+    }
+}
 
 pub struct Timed<F: Future>(Box<Future<Item = F::Item, Error = F::Error>>);
 impl<F: Future> Future for Timed<F> {
