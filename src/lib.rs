@@ -12,7 +12,8 @@
 //! Labels are stored in a `BTreeMap` because they are used as hash keys and, therefore,
 //! need to implement `Hash`.
 
-#[cfg_attr(test, feature(test))]
+
+#![cfg_attr(test, feature(test))]
 
 extern crate futures;
 extern crate hdrsample;
