@@ -19,11 +19,11 @@ fn main() {
             .sleep(Duration::from_millis(1000))
             .map_err(|_| {})
             .map(move |_| {
-                     let r = reporter.peek();
-                     println!("# metrics:");
-                     println!("");
-                     println!("{}", tacho::prometheus::string(&r).unwrap());
-                 })
+                let r = reporter.peek();
+                println!("# metrics:");
+                println!("");
+                println!("{}", tacho::prometheus::string(&r).unwrap());
+            })
     });
 
     let mut core = Core::new().expect("could not create core");
@@ -43,11 +43,11 @@ fn do_work(metrics: tacho::Scope) -> future::BoxFuture<(), ()> {
             .sleep(Duration::from_millis(20 * (n % 5)))
             .map_err(|_| {})
             .map(move |_| if n == 0 {
-                     future::Loop::Break(n)
-                 } else {
-                     iter_time_us.add(start.elapsed_us());
-                     future::Loop::Continue(n - 1)
-                 })
+                future::Loop::Break(n)
+            } else {
+                iter_time_us.add(start.elapsed_us());
+                future::Loop::Continue(n - 1)
+            })
     });
     work.map(|_| {}).boxed()
 }
