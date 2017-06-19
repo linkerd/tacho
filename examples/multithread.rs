@@ -24,10 +24,9 @@ fn main() {
     let (work_done_tx0, work_done_rx0) = oneshot::channel();
     let (work_done_tx1, work_done_rx1) = oneshot::channel();
     let reporter = {
-        let work_done_rx = work_done_rx0
-            .join(work_done_rx1)
-            .map(|_| {})
-            .map_err(|_| ());
+        let work_done_rx = work_done_rx0.join(work_done_rx1).map(|_| {}).map_err(
+            |_| (),
+        );
         let interval = Duration::from_secs(2);
         reporter(interval, work_done_rx, report)
     };
@@ -64,7 +63,8 @@ fn main() {
 
 /// Prints a report every `interval` and when the `done` is satisfied.
 fn reporter<D>(interval: Duration, done: D, reporter: tacho::Reporter) -> BoxFuture<(), ()>
-    where D: Future<Item = (), Error = ()> + Send + 'static
+where
+    D: Future<Item = (), Error = ()> + Send + 'static,
 {
     let periodic = {
         let mut reporter = reporter.clone();
@@ -72,9 +72,9 @@ fn reporter<D>(interval: Duration, done: D, reporter: tacho::Reporter) -> BoxFut
             .interval(interval)
             .map_err(|_| {})
             .for_each(move |_| {
-                          print_report(&reporter.take());
-                          Ok(())
-                      })
+                print_report(&reporter.take());
+                Ok(())
+            })
     };
     let done = done.map(move |_| { print_report(&reporter.peek()); });
     periodic.select(done).map(|_| {}).map_err(|_| {}).boxed()

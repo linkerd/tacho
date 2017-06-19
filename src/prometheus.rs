@@ -11,7 +11,8 @@ pub fn string(report: &Report) -> Result<String, fmt::Error> {
 
 /// Renders a `Report` for Prometheus.
 pub fn write<W>(out: &mut W, report: &Report) -> fmt::Result
-    where W: fmt::Write
+where
+    W: fmt::Write,
 {
     for (k, v) in report.counters() {
         let name = FmtName::new(k.prefix(), k.name());
@@ -30,22 +31,26 @@ pub fn write<W>(out: &mut W, report: &Report) -> fmt::Result
         write_metric(out, &format_args!("{}_{}", name, "min"), &labels, &h.min())?;
         write_metric(out, &format_args!("{}_{}", name, "max"), &labels, &h.max())?;
         write_metric(out, &format_args!("{}_{}", name, "sum"), &labels, &h.sum())?;
-        write_metric(out,
-                     &format_args!("{}_{}", name, "count"),
-                     &labels,
-                     &h.count())?;
+        write_metric(
+            out,
+            &format_args!("{}_{}", name, "count"),
+            &labels,
+            &h.count(),
+        )?;
     }
 
     Ok(())
 }
 
-fn write_buckets<N, W>(out: &mut W,
-                       name: &N,
-                       labels: &FmtLabels,
-                       h: &Histogram<usize>)
-                       -> fmt::Result
-    where N: fmt::Display,
-          W: fmt::Write
+fn write_buckets<N, W>(
+    out: &mut W,
+    name: &N,
+    labels: &FmtLabels,
+    h: &Histogram<usize>,
+) -> fmt::Result
+where
+    N: fmt::Display,
+    W: fmt::Write,
 {
     // `Histogram` tracks buckets as a sequence of minimum values and incremental counts,
     // however prometheus expects maximum values with cumulative counts.
@@ -72,32 +77,38 @@ fn write_buckets<N, W>(out: &mut W,
     Ok(())
 }
 
-fn write_bucket<N, M, W>(out: &mut W,
-                         name: &N,
-                         labels: &FmtLabels,
-                         le: &M,
-                         count: usize)
-                         -> fmt::Result
-    where N: fmt::Display,
-          M: fmt::Display,
-          W: fmt::Write
+fn write_bucket<N, M, W>(
+    out: &mut W,
+    name: &N,
+    labels: &FmtLabels,
+    le: &M,
+    count: usize,
+) -> fmt::Result
+where
+    N: fmt::Display,
+    M: fmt::Display,
+    W: fmt::Write,
 {
-    write_metric(out,
-                 &format_args!("{}_bucket", name),
-                 &labels.with_extra("le", format_args!("{}", le)),
-                 &count)
+    write_metric(
+        out,
+        &format_args!("{}_bucket", name),
+        &labels.with_extra("le", format_args!("{}", le)),
+        &count,
+    )
 }
 
 fn write_metric<W, N, V>(out: &mut W, name: &N, labels: &FmtLabels, v: &V) -> fmt::Result
-    where W: fmt::Write,
-          N: fmt::Display,
-          V: fmt::Display
+where
+    W: fmt::Write,
+    N: fmt::Display,
+    V: fmt::Display,
 {
     writeln!(out, "{}{} {}", name, labels, v)
 }
 
 fn write_prefix<W>(out: &mut W, prefix: Arc<super::Prefix>) -> fmt::Result
-    where W: fmt::Write
+where
+    W: fmt::Write,
 {
     if let super::Prefix::Node { ref prefix, value } = *prefix {
         write_prefix(out, prefix.clone())?;
