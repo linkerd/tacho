@@ -27,16 +27,14 @@ where
     for (k, h) in report.stats() {
         let name = FmtName::new(k.prefix(), k.name());
         let labels = k.labels().into();
-        write_buckets(out, &name, &labels, h.histogram())?;
-        write_metric(out, &format_args!("{}_{}", name, "min"), &labels, &h.min())?;
-        write_metric(out, &format_args!("{}_{}", name, "max"), &labels, &h.max())?;
-        write_metric(out, &format_args!("{}_{}", name, "sum"), &labels, &h.sum())?;
-        write_metric(
-            out,
-            &format_args!("{}_{}", name, "count"),
-            &labels,
-            &h.count(),
-        )?;
+        let count = h.count();
+        write_metric(out, &format_args!("{}_{}", name, "count"), &labels, &count)?;
+        if count > 0 {
+            write_buckets(out, &name, &labels, h.histogram())?;
+            write_metric(out, &format_args!("{}_{}", name, "min"), &labels, &h.min())?;
+            write_metric(out, &format_args!("{}_{}", name, "max"), &labels, &h.max())?;
+            write_metric(out, &format_args!("{}_{}", name, "sum"), &labels, &h.sum())?;
+        }
     }
 
     Ok(())
