@@ -312,7 +312,7 @@ impl HistogramWithSum {
     }
 
     pub fn clear(&mut self) {
-        self.histogram.clear();
+        self.histogram.reset();
         self.sum = 0;
     }
 }
