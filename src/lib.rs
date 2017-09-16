@@ -54,7 +54,6 @@ pub enum Prefix {
     },
 }
 
-
 /// Creates a metrics registry.
 ///
 /// The returned `Scope` may be you used to instantiate metrics. Labels may be attached to
@@ -317,7 +316,7 @@ impl HistogramWithSum {
     }
 }
 
-/// Caputres a distribution of values.
+/// Captures a distribution of values.
 #[derive(Clone)]
 pub struct Stat {
     histo: Weak<Mutex<HistogramWithSum>>,
@@ -395,27 +394,27 @@ impl<F: Future> Future for Timed<F> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test::Bencher;
+    use test::{Bencher, black_box};
 
     static DEFAULT_METRIC_NAME: &'static str = "a_sufficiently_long_name";
 
     #[bench]
     fn bench_scope_clone(b: &mut Bencher) {
         let (metrics, _) = super::new();
-        b.iter(move || { let _ = metrics.clone(); });
+        b.iter(move || black_box(metrics.clone()));
     }
 
     #[bench]
     fn bench_scope_label(b: &mut Bencher) {
         let (metrics, _) = super::new();
-        b.iter(move || { let _ = metrics.clone().labeled("foo", "bar"); });
+        b.iter(move || { black_box(metrics.clone().labeled("foo", "bar")) });
     }
 
     #[bench]
     fn bench_scope_clone_x1000(b: &mut Bencher) {
         let scopes = mk_scopes(1000, "bench_scope_clone_x1000");
         b.iter(move || for scope in &scopes {
-            let _ = scope.clone();
+            black_box(scope.clone());
         });
     }
 
@@ -423,33 +422,33 @@ mod tests {
     fn bench_scope_label_x1000(b: &mut Bencher) {
         let scopes = mk_scopes(1000, "bench_scope_label_x1000");
         b.iter(move || for scope in &scopes {
-            let _ = scope.clone().labeled("foo", "bar");
+            black_box(scope.clone().labeled("foo", "bar"));
         });
     }
 
     #[bench]
     fn bench_counter_create(b: &mut Bencher) {
         let (metrics, _) = super::new();
-        b.iter(move || { let _ = metrics.counter(DEFAULT_METRIC_NAME); });
+        b.iter(move || black_box(metrics.counter(DEFAULT_METRIC_NAME)));
     }
 
     #[bench]
     fn bench_gauge_create(b: &mut Bencher) {
         let (metrics, _) = super::new();
-        b.iter(move || { let _ = metrics.gauge(DEFAULT_METRIC_NAME); });
+        b.iter(move || black_box(metrics.gauge(DEFAULT_METRIC_NAME)));
     }
 
     #[bench]
     fn bench_stat_create(b: &mut Bencher) {
         let (metrics, _) = super::new();
-        b.iter(move || { let _ = metrics.stat(DEFAULT_METRIC_NAME); });
+        b.iter(move || black_box(metrics.stat(DEFAULT_METRIC_NAME)));
     }
 
     #[bench]
     fn bench_counter_create_x1000(b: &mut Bencher) {
         let scopes = mk_scopes(1000, "bench_counter_create_x1000");
         b.iter(move || for scope in &scopes {
-            scope.counter(DEFAULT_METRIC_NAME);
+            black_box(scope.counter(DEFAULT_METRIC_NAME));
         });
     }
 
@@ -457,7 +456,7 @@ mod tests {
     fn bench_gauge_create_x1000(b: &mut Bencher) {
         let scopes = mk_scopes(1000, "bench_gauge_create_x1000");
         b.iter(move || for scope in &scopes {
-            scope.gauge(DEFAULT_METRIC_NAME);
+            black_box(scope.gauge(DEFAULT_METRIC_NAME));
         });
     }
 
@@ -465,7 +464,7 @@ mod tests {
     fn bench_stat_create_x1000(b: &mut Bencher) {
         let scopes = mk_scopes(1000, "bench_stat_create_x1000");
         b.iter(move || for scope in &scopes {
-            scope.stat(DEFAULT_METRIC_NAME);
+            black_box(scope.stat(DEFAULT_METRIC_NAME));
         });
     }
 
@@ -473,64 +472,86 @@ mod tests {
     fn bench_counter_update(b: &mut Bencher) {
         let (metrics, _) = super::new();
         let c = metrics.counter(DEFAULT_METRIC_NAME);
-        b.iter(move || c.incr(1));
+        b.iter(move || {
+            c.incr(1);
+            black_box(&c);
+        });
     }
 
     #[bench]
     fn bench_gauge_update(b: &mut Bencher) {
         let (metrics, _) = super::new();
         let g = metrics.gauge(DEFAULT_METRIC_NAME);
-        b.iter(move || g.set(1));
+        b.iter(move || {
+            g.set(1);
+            black_box(&g);
+        });
     }
 
     #[bench]
     fn bench_stat_update(b: &mut Bencher) {
-        let (metrics, _) = super::new();
-        let s = metrics.stat(DEFAULT_METRIC_NAME);
-        b.iter(move || s.add(1));
+        let (scope, _) = super::new();
+        let s = scope.stat(DEFAULT_METRIC_NAME);
+        b.iter(move || {
+            s.add(1);
+            black_box(&s);
+        });
     }
 
     #[bench]
     fn bench_counter_update_x1000(b: &mut Bencher) {
-        let counters: Vec<Counter> = mk_scopes(1000, "bench_counter_update_x1000")
+        let scopes = mk_scopes(1000, "bench_counter_update_x1000");
+        let counters: Vec<Counter> = scopes
             .iter()
             .map(|s| s.counter(DEFAULT_METRIC_NAME))
             .collect();
-        b.iter(move || for c in &counters {
-            c.incr(1)
+        b.iter(move || {
+            for c in &counters {
+                c.incr(1);
+            }
+            black_box(&counters);
         });
     }
 
     #[bench]
     fn bench_gauge_update_x1000(b: &mut Bencher) {
-        let gauges: Vec<Gauge> = mk_scopes(1000, "bench_gauge_update_x1000")
+        let scopes = mk_scopes(1000, "bench_gauge_update_x1000");
+        let gauges: Vec<Gauge> = scopes
             .iter()
             .map(|s| s.gauge(DEFAULT_METRIC_NAME))
             .collect();
-        b.iter(move || for g in &gauges {
-            g.set(1)
+        b.iter(move || {
+            for g in &gauges {
+                g.set(1);
+            }
+            black_box(&gauges);
         });
     }
 
     #[bench]
     fn bench_stat_update_x1000(b: &mut Bencher) {
-        let stats: Vec<Stat> = mk_scopes(1000, "bench_stat_update_x1000")
+        let scopes = mk_scopes(1000, "bench_stat_update_x1000");
+        let stats: Vec<Stat> = scopes
             .iter()
             .map(|s| s.stat(DEFAULT_METRIC_NAME))
             .collect();
-        b.iter(move || for s in &stats {
-            s.add(1)
+        b.iter(move || {
+            for s in &stats {
+                s.add(1)
+            }
+            black_box(&stats);
         });
     }
 
     #[bench]
     fn bench_stat_add_x1000(b: &mut Bencher) {
-        let s = {
-            let (metrics, _) = super::new();
-            metrics.stat(DEFAULT_METRIC_NAME)
-        };
-        b.iter(move || for i in 0..1000 {
-            s.add(i)
+        let (metrics, _) = super::new();
+        let s = metrics.stat(DEFAULT_METRIC_NAME);
+        b.iter(move || {
+            for i in 0..1000 {
+                s.add(i);
+            }
+            black_box(&s);
         });
     }
 
