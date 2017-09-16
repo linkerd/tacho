@@ -20,16 +20,18 @@ extern crate hdrsample;
 #[macro_use]
 extern crate log;
 extern crate ordermap;
+extern crate parking_lot;
 #[cfg(test)]
 extern crate test;
 
 use futures::{Future, Poll};
 use hdrsample::Histogram;
 use ordermap::OrderMap;
+use parking_lot::Mutex;
 use std::boxed::Box;
 use std::collections::BTreeMap;
 use std::fmt;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
@@ -144,9 +146,7 @@ impl Scope {
     /// Creates a Counter with the given name.
     pub fn counter(&self, name: &'static str) -> Counter {
         let key = Key::new(name, self.prefix.clone(), self.labels.clone());
-        let mut reg = self.registry.lock().expect(
-            "failed to obtain lock on registry",
-        );
+        let mut reg = self.registry.lock();
 
         if let Some(c) = reg.counters.get(&key) {
             return Counter(c.clone());
@@ -161,9 +161,7 @@ impl Scope {
     /// Creates a Gauge with the given name.
     pub fn gauge(&self, name: &'static str) -> Gauge {
         let key = Key::new(name, self.prefix.clone(), self.labels.clone());
-        let mut reg = self.registry.lock().expect(
-            "failed to obtain lock on registry",
-        );
+        let mut reg = self.registry.lock();
 
         if let Some(g) = reg.gauges.get(&key) {
             return Gauge(g.clone());
@@ -204,7 +202,7 @@ impl Scope {
     }
 
     fn mk_stat(&self, key: Key, bounds: Option<(u64, u64)>) -> Stat {
-        let mut reg = self.registry.lock().expect("failed to obtain lock on registry");
+        let mut reg = self.registry.lock();
 
         if let Some(h) = reg.stats.get(&key) {
             return Stat { histo: h.clone(), bounds };
@@ -307,12 +305,12 @@ pub struct Stat {
 
 impl Stat {
     pub fn add(&self, v: u64) {
-        let mut histo = self.histo.lock().expect("failed to obtain lock for stat");
+        let mut histo = self.histo.lock();
         histo.record(v);
     }
 
     pub fn add_values(&mut self, vs: &[u64]) {
-        let mut histo = self.histo.lock().expect("failed to obtain lock for stat");
+        let mut histo = self.histo.lock();
         for v in vs {
             histo.record(*v)
         }

@@ -1,6 +1,7 @@
 use super::{Key, HistogramWithSum, Registry, CounterMap, GaugeMap, StatMap};
 use ordermap::OrderMap;
-use std::sync::{Arc, Mutex};
+use parking_lot::Mutex;
+use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 type ReportCounterMap = OrderMap<Key, usize>;
@@ -17,7 +18,7 @@ pub struct Reporter(Arc<Mutex<Registry>>);
 impl Reporter {
     /// Obtains a read-only view of a metrics report without clearing the underlying state.
     pub fn peek(&self) -> Report {
-        let registry = self.0.lock().unwrap();
+        let registry = self.0.lock();
         Report {
             counters: snap_counters(&registry.counters),
             gauges: snap_gauges(&registry.gauges),
@@ -27,7 +28,7 @@ impl Reporter {
 
     /// Obtains a Report and removes unused metrics.
     pub fn take(&mut self) -> Report {
-        let mut registry = self.0.lock().unwrap();
+        let mut registry = self.0.lock();
 
         let report = Report {
             counters: snap_counters(&registry.counters),
@@ -65,7 +66,7 @@ fn snap_gauges(gauges: &GaugeMap) -> ReportGaugeMap {
 fn snap_stats(stats: &StatMap, clear: bool) -> ReportStatMap {
     let mut snap = ReportStatMap::with_capacity(stats.len());
     for (k, ptr) in &*stats {
-        let mut orig = ptr.lock().unwrap();
+        let mut orig = ptr.lock();
         snap.insert(k.clone(), orig.clone());
         if clear {
             orig.clear();
