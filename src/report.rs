@@ -36,9 +36,9 @@ impl Reporter {
         };
 
         // Drop unreferenced metrics.
-        registry.counters.retain(|_, v| Arc::weak_count(v) > 0);
-        registry.gauges.retain(|_, v| Arc::weak_count(v) > 0);
-        registry.stats.retain(|_, v| Arc::weak_count(v) > 0);
+        registry.counters.retain(|_, v| Arc::strong_count(v) > 1);
+        registry.gauges.retain(|_, v| Arc::strong_count(v) > 1);
+        registry.stats.retain(|_, v| Arc::strong_count(v) > 1);
 
         report
     }

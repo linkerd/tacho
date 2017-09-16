@@ -4,7 +4,7 @@
 //! served, a distribution of request latency, the number of failures, the number of loop
 //! iterations, etc. `tacho::new` creates a shareable, scopable metrics registry and a
 //! `Reporter`. The `Scope` supports the creation of `Counter`, `Gauge`, and `Stat`
-//! handles that may be used to report values. Each of these receivers maintains a weak
+//! handles that may be used to report values. Each of these receivers maintains a
 //! reference back to the central stats registry.
 //!
 //! ## Performance
@@ -29,7 +29,7 @@ use ordermap::OrderMap;
 use std::boxed::Box;
 use std::collections::BTreeMap;
 use std::fmt;
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
@@ -149,11 +149,11 @@ impl Scope {
         );
 
         if let Some(c) = reg.counters.get(&key) {
-            return Counter(Arc::downgrade(c));
+            return Counter(c.clone());
         }
 
         let c = Arc::new(AtomicUsize::new(0));
-        let counter = Counter(Arc::downgrade(&c));
+        let counter = Counter(c.clone());
         reg.counters.insert(key, c);
         counter
     }
@@ -166,11 +166,11 @@ impl Scope {
         );
 
         if let Some(g) = reg.gauges.get(&key) {
-            return Gauge(Arc::downgrade(g));
+            return Gauge(g.clone());
         }
 
         let g = Arc::new(AtomicUsize::new(0));
-        let gauge = Gauge(Arc::downgrade(&g));
+        let gauge = Gauge(g.clone());
         reg.gauges.insert(key, g);
         gauge
     }
@@ -204,57 +204,39 @@ impl Scope {
     }
 
     fn mk_stat(&self, key: Key, bounds: Option<(u64, u64)>) -> Stat {
-        let mut reg = self.registry.lock().expect(
-            "failed to obtain lock on registry",
-        );
+        let mut reg = self.registry.lock().expect("failed to obtain lock on registry");
 
         if let Some(h) = reg.stats.get(&key) {
-            let histo = Arc::downgrade(h);
-            return Stat { histo, bounds };
+            return Stat { histo: h.clone(), bounds };
         }
 
-        let h = Arc::new(Mutex::new(HistogramWithSum::new(bounds)));
-        let histo = Arc::downgrade(&h);
-        reg.stats.insert(key, h);
+        let histo = Arc::new(Mutex::new(HistogramWithSum::new(bounds)));
+        reg.stats.insert(key, histo.clone());
         Stat { histo, bounds }
     }
 }
 
 /// Counts monotically.
 #[derive(Clone)]
-pub struct Counter(Weak<AtomicUsize>);
+pub struct Counter(Arc<AtomicUsize>);
 impl Counter {
     pub fn incr(&self, v: usize) {
-        if let Some(c) = self.0.upgrade() {
-            c.fetch_add(v, Ordering::AcqRel);
-        }
+        self.0.fetch_add(v, Ordering::AcqRel);
     }
 }
 
 /// Captures an instantaneous value.
 #[derive(Clone)]
-pub struct Gauge(Weak<AtomicUsize>);
+pub struct Gauge(Arc<AtomicUsize>);
 impl Gauge {
     pub fn incr(&self, v: usize) {
-        if let Some(g) = self.0.upgrade() {
-            g.fetch_add(v, Ordering::AcqRel);
-        } else {
-            debug!("gauge dropped");
-        }
+        self.0.fetch_add(v, Ordering::AcqRel);
     }
     pub fn decr(&self, v: usize) {
-        if let Some(g) = self.0.upgrade() {
-            g.fetch_sub(v, Ordering::AcqRel);
-        } else {
-            debug!("gauge dropped");
-        }
+        self.0.fetch_sub(v, Ordering::AcqRel);
     }
     pub fn set(&self, v: usize) {
-        if let Some(g) = self.0.upgrade() {
-            g.store(v, Ordering::Release);
-        } else {
-            debug!("gauge dropped");
-        }
+        self.0.store(v, Ordering::Release);
     }
 }
 
@@ -319,24 +301,20 @@ impl HistogramWithSum {
 /// Captures a distribution of values.
 #[derive(Clone)]
 pub struct Stat {
-    histo: Weak<Mutex<HistogramWithSum>>,
+    histo: Arc<Mutex<HistogramWithSum>>,
     bounds: Option<(u64, u64)>,
 }
 
 impl Stat {
     pub fn add(&self, v: u64) {
-        if let Some(h) = self.histo.upgrade() {
-            let mut histo = h.lock().expect("failed to obtain lock for stat");
-            histo.record(v);
-        }
+        let mut histo = self.histo.lock().expect("failed to obtain lock for stat");
+        histo.record(v);
     }
 
     pub fn add_values(&mut self, vs: &[u64]) {
-        if let Some(h) = self.histo.upgrade() {
-            let mut histo = h.lock().expect("failed to obtain lock for stat");
-            for v in vs {
-                histo.record(*v)
-            }
+        let mut histo = self.histo.lock().expect("failed to obtain lock for stat");
+        for v in vs {
+            histo.record(*v)
         }
     }
 }
