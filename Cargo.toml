@@ -13,6 +13,7 @@ futures = "0.1"
 hdrsample = "3.0"
 log = "0.3"
 ordermap = "0.2.10"
+parking_lot = "0.4"
 
 [dev-dependencies]
 tokio-timer = "0.1"
